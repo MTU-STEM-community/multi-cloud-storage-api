@@ -66,5 +66,35 @@ export class StorageService {
   }
 
   private async uploadToDropbox(file: Express.Multer.File): Promise<string> {
+    const { Dropbox } = await import('dropbox');
+    const accessToken = this.configService.get<string>('DROPBOX_ACCESS_TOKEN');
+
+    if (!accessToken) {
+      throw new Error(
+        'Dropbox access token is missing in environment variables.',
+      );
+    }
+
+    const dropbox = new Dropbox({ accessToken });
+    const fileName = `${Date.now()}_${file.originalname}`;
+
+    try {
+      const response = await dropbox.filesUpload({
+        path: `/${fileName}`,
+        contents: file.buffer,
+      });
+
+      if (!response.result) {
+        throw new Error('Failed to upload file to Dropbox.');
+      }
+
+      const linkResponse = await dropbox.sharingCreateSharedLinkWithSettings({
+        path: response.result.path_lower!,
+      });
+
+      return linkResponse.result.url.replace('?dl=0', '?raw=1'); // Direct link to file
+    } catch (error) {
+      throw new Error(`Dropbox upload error: ${error.message}`);
+    }
   }
 }
