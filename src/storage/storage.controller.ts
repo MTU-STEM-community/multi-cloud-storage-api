@@ -1,4 +1,12 @@
-import { Controller, Post, Get, Param, UploadedFile, UseInterceptors } from '@nestjs/common';
+import {
+  Controller,
+  Post,
+  Get,
+  Param,
+  UploadedFile,
+  UseInterceptors,
+  Delete
+} from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { StorageService } from './storage.service';
 import { FileValidationPipe } from '../pipes/file-validation.pipe';
@@ -27,5 +35,13 @@ export class StorageController {
     @Param('fileId') fileId: string,
   ) {
     return this.storageService.downloadFileFromProvider(provider, fileId);
+  }
+
+  @Delete('delete/:provider/:fileId')
+  async deleteFile(
+    @Param('provider') provider: string,
+    @Param('fileId') fileId: string,
+  ) {
+    return this.storageService.deleteFileFromProvider(provider, fileId);
   }
 }
