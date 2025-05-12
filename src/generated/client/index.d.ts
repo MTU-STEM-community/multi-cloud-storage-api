@@ -1048,6 +1048,7 @@ export namespace Prisma {
     type: string | null
     createdAt: Date | null
     updatedAt: Date | null
+    deletedAt: Date | null
   }
 
   export type FileMaxAggregateOutputType = {
@@ -1057,6 +1058,7 @@ export namespace Prisma {
     type: string | null
     createdAt: Date | null
     updatedAt: Date | null
+    deletedAt: Date | null
   }
 
   export type FileCountAggregateOutputType = {
@@ -1066,6 +1068,7 @@ export namespace Prisma {
     type: number
     createdAt: number
     updatedAt: number
+    deletedAt: number
     _all: number
   }
 
@@ -1085,6 +1088,7 @@ export namespace Prisma {
     type?: true
     createdAt?: true
     updatedAt?: true
+    deletedAt?: true
   }
 
   export type FileMaxAggregateInputType = {
@@ -1094,6 +1098,7 @@ export namespace Prisma {
     type?: true
     createdAt?: true
     updatedAt?: true
+    deletedAt?: true
   }
 
   export type FileCountAggregateInputType = {
@@ -1103,6 +1108,7 @@ export namespace Prisma {
     type?: true
     createdAt?: true
     updatedAt?: true
+    deletedAt?: true
     _all?: true
   }
 
@@ -1199,6 +1205,7 @@ export namespace Prisma {
     type: string
     createdAt: Date
     updatedAt: Date
+    deletedAt: Date | null
     _count: FileCountAggregateOutputType | null
     _avg: FileAvgAggregateOutputType | null
     _sum: FileSumAggregateOutputType | null
@@ -1227,6 +1234,7 @@ export namespace Prisma {
     type?: boolean
     createdAt?: boolean
     updatedAt?: boolean
+    deletedAt?: boolean
     cloudStorages?: boolean | File$cloudStoragesArgs<ExtArgs>
     _count?: boolean | FileCountOutputTypeDefaultArgs<ExtArgs>
   }, ExtArgs["result"]["file"]>
@@ -1238,6 +1246,7 @@ export namespace Prisma {
     type?: boolean
     createdAt?: boolean
     updatedAt?: boolean
+    deletedAt?: boolean
   }, ExtArgs["result"]["file"]>
 
   export type FileSelectUpdateManyAndReturn<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = $Extensions.GetSelect<{
@@ -1247,6 +1256,7 @@ export namespace Prisma {
     type?: boolean
     createdAt?: boolean
     updatedAt?: boolean
+    deletedAt?: boolean
   }, ExtArgs["result"]["file"]>
 
   export type FileSelectScalar = {
@@ -1256,9 +1266,10 @@ export namespace Prisma {
     type?: boolean
     createdAt?: boolean
     updatedAt?: boolean
+    deletedAt?: boolean
   }
 
-  export type FileOmit<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = $Extensions.GetOmit<"id" | "name" | "size" | "type" | "createdAt" | "updatedAt", ExtArgs["result"]["file"]>
+  export type FileOmit<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = $Extensions.GetOmit<"id" | "name" | "size" | "type" | "createdAt" | "updatedAt" | "deletedAt", ExtArgs["result"]["file"]>
   export type FileInclude<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = {
     cloudStorages?: boolean | File$cloudStoragesArgs<ExtArgs>
     _count?: boolean | FileCountOutputTypeDefaultArgs<ExtArgs>
@@ -1278,6 +1289,7 @@ export namespace Prisma {
       type: string
       createdAt: Date
       updatedAt: Date
+      deletedAt: Date | null
     }, ExtArgs["result"]["file"]>
     composites: {}
   }
@@ -1708,6 +1720,7 @@ export namespace Prisma {
     readonly type: FieldRef<"File", 'String'>
     readonly createdAt: FieldRef<"File", 'DateTime'>
     readonly updatedAt: FieldRef<"File", 'DateTime'>
+    readonly deletedAt: FieldRef<"File", 'DateTime'>
   }
     
 
@@ -3215,7 +3228,8 @@ export namespace Prisma {
     size: 'size',
     type: 'type',
     createdAt: 'createdAt',
-    updatedAt: 'updatedAt'
+    updatedAt: 'updatedAt',
+    deletedAt: 'deletedAt'
   };
 
   export type FileScalarFieldEnum = (typeof FileScalarFieldEnum)[keyof typeof FileScalarFieldEnum]
@@ -3245,6 +3259,14 @@ export namespace Prisma {
   };
 
   export type QueryMode = (typeof QueryMode)[keyof typeof QueryMode]
+
+
+  export const NullsOrder: {
+    first: 'first',
+    last: 'last'
+  };
+
+  export type NullsOrder = (typeof NullsOrder)[keyof typeof NullsOrder]
 
 
   /**
@@ -3321,6 +3343,7 @@ export namespace Prisma {
     type?: StringFilter<"File"> | string
     createdAt?: DateTimeFilter<"File"> | Date | string
     updatedAt?: DateTimeFilter<"File"> | Date | string
+    deletedAt?: DateTimeNullableFilter<"File"> | Date | string | null
     cloudStorages?: CloudStorageListRelationFilter
   }
 
@@ -3331,6 +3354,7 @@ export namespace Prisma {
     type?: SortOrder
     createdAt?: SortOrder
     updatedAt?: SortOrder
+    deletedAt?: SortOrderInput | SortOrder
     cloudStorages?: CloudStorageOrderByRelationAggregateInput
   }
 
@@ -3344,6 +3368,7 @@ export namespace Prisma {
     type?: StringFilter<"File"> | string
     createdAt?: DateTimeFilter<"File"> | Date | string
     updatedAt?: DateTimeFilter<"File"> | Date | string
+    deletedAt?: DateTimeNullableFilter<"File"> | Date | string | null
     cloudStorages?: CloudStorageListRelationFilter
   }, "id">
 
@@ -3354,6 +3379,7 @@ export namespace Prisma {
     type?: SortOrder
     createdAt?: SortOrder
     updatedAt?: SortOrder
+    deletedAt?: SortOrderInput | SortOrder
     _count?: FileCountOrderByAggregateInput
     _avg?: FileAvgOrderByAggregateInput
     _max?: FileMaxOrderByAggregateInput
@@ -3371,6 +3397,7 @@ export namespace Prisma {
     type?: StringWithAggregatesFilter<"File"> | string
     createdAt?: DateTimeWithAggregatesFilter<"File"> | Date | string
     updatedAt?: DateTimeWithAggregatesFilter<"File"> | Date | string
+    deletedAt?: DateTimeNullableWithAggregatesFilter<"File"> | Date | string | null
   }
 
   export type CloudStorageWhereInput = {
@@ -3430,6 +3457,7 @@ export namespace Prisma {
     type: string
     createdAt?: Date | string
     updatedAt?: Date | string
+    deletedAt?: Date | string | null
     cloudStorages?: CloudStorageCreateNestedManyWithoutFilesInput
   }
 
@@ -3440,6 +3468,7 @@ export namespace Prisma {
     type: string
     createdAt?: Date | string
     updatedAt?: Date | string
+    deletedAt?: Date | string | null
     cloudStorages?: CloudStorageUncheckedCreateNestedManyWithoutFilesInput
   }
 
@@ -3450,6 +3479,7 @@ export namespace Prisma {
     type?: StringFieldUpdateOperationsInput | string
     createdAt?: DateTimeFieldUpdateOperationsInput | Date | string
     updatedAt?: DateTimeFieldUpdateOperationsInput | Date | string
+    deletedAt?: NullableDateTimeFieldUpdateOperationsInput | Date | string | null
     cloudStorages?: CloudStorageUpdateManyWithoutFilesNestedInput
   }
 
@@ -3460,6 +3490,7 @@ export namespace Prisma {
     type?: StringFieldUpdateOperationsInput | string
     createdAt?: DateTimeFieldUpdateOperationsInput | Date | string
     updatedAt?: DateTimeFieldUpdateOperationsInput | Date | string
+    deletedAt?: NullableDateTimeFieldUpdateOperationsInput | Date | string | null
     cloudStorages?: CloudStorageUncheckedUpdateManyWithoutFilesNestedInput
   }
 
@@ -3470,6 +3501,7 @@ export namespace Prisma {
     type: string
     createdAt?: Date | string
     updatedAt?: Date | string
+    deletedAt?: Date | string | null
   }
 
   export type FileUpdateManyMutationInput = {
@@ -3479,6 +3511,7 @@ export namespace Prisma {
     type?: StringFieldUpdateOperationsInput | string
     createdAt?: DateTimeFieldUpdateOperationsInput | Date | string
     updatedAt?: DateTimeFieldUpdateOperationsInput | Date | string
+    deletedAt?: NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   }
 
   export type FileUncheckedUpdateManyInput = {
@@ -3488,6 +3521,7 @@ export namespace Prisma {
     type?: StringFieldUpdateOperationsInput | string
     createdAt?: DateTimeFieldUpdateOperationsInput | Date | string
     updatedAt?: DateTimeFieldUpdateOperationsInput | Date | string
+    deletedAt?: NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   }
 
   export type CloudStorageCreateInput = {
@@ -3580,10 +3614,26 @@ export namespace Prisma {
     not?: NestedDateTimeFilter<$PrismaModel> | Date | string
   }
 
+  export type DateTimeNullableFilter<$PrismaModel = never> = {
+    equals?: Date | string | DateTimeFieldRefInput<$PrismaModel> | null
+    in?: Date[] | string[] | ListDateTimeFieldRefInput<$PrismaModel> | null
+    notIn?: Date[] | string[] | ListDateTimeFieldRefInput<$PrismaModel> | null
+    lt?: Date | string | DateTimeFieldRefInput<$PrismaModel>
+    lte?: Date | string | DateTimeFieldRefInput<$PrismaModel>
+    gt?: Date | string | DateTimeFieldRefInput<$PrismaModel>
+    gte?: Date | string | DateTimeFieldRefInput<$PrismaModel>
+    not?: NestedDateTimeNullableFilter<$PrismaModel> | Date | string | null
+  }
+
   export type CloudStorageListRelationFilter = {
     every?: CloudStorageWhereInput
     some?: CloudStorageWhereInput
     none?: CloudStorageWhereInput
+  }
+
+  export type SortOrderInput = {
+    sort: SortOrder
+    nulls?: NullsOrder
   }
 
   export type CloudStorageOrderByRelationAggregateInput = {
@@ -3597,6 +3647,7 @@ export namespace Prisma {
     type?: SortOrder
     createdAt?: SortOrder
     updatedAt?: SortOrder
+    deletedAt?: SortOrder
   }
 
   export type FileAvgOrderByAggregateInput = {
@@ -3610,6 +3661,7 @@ export namespace Prisma {
     type?: SortOrder
     createdAt?: SortOrder
     updatedAt?: SortOrder
+    deletedAt?: SortOrder
   }
 
   export type FileMinOrderByAggregateInput = {
@@ -3619,6 +3671,7 @@ export namespace Prisma {
     type?: SortOrder
     createdAt?: SortOrder
     updatedAt?: SortOrder
+    deletedAt?: SortOrder
   }
 
   export type FileSumOrderByAggregateInput = {
@@ -3671,6 +3724,20 @@ export namespace Prisma {
     _count?: NestedIntFilter<$PrismaModel>
     _min?: NestedDateTimeFilter<$PrismaModel>
     _max?: NestedDateTimeFilter<$PrismaModel>
+  }
+
+  export type DateTimeNullableWithAggregatesFilter<$PrismaModel = never> = {
+    equals?: Date | string | DateTimeFieldRefInput<$PrismaModel> | null
+    in?: Date[] | string[] | ListDateTimeFieldRefInput<$PrismaModel> | null
+    notIn?: Date[] | string[] | ListDateTimeFieldRefInput<$PrismaModel> | null
+    lt?: Date | string | DateTimeFieldRefInput<$PrismaModel>
+    lte?: Date | string | DateTimeFieldRefInput<$PrismaModel>
+    gt?: Date | string | DateTimeFieldRefInput<$PrismaModel>
+    gte?: Date | string | DateTimeFieldRefInput<$PrismaModel>
+    not?: NestedDateTimeNullableWithAggregatesFilter<$PrismaModel> | Date | string | null
+    _count?: NestedIntNullableFilter<$PrismaModel>
+    _min?: NestedDateTimeNullableFilter<$PrismaModel>
+    _max?: NestedDateTimeNullableFilter<$PrismaModel>
   }
 
   export type FileListRelationFilter = {
@@ -3730,6 +3797,10 @@ export namespace Prisma {
 
   export type DateTimeFieldUpdateOperationsInput = {
     set?: Date | string
+  }
+
+  export type NullableDateTimeFieldUpdateOperationsInput = {
+    set?: Date | string | null
   }
 
   export type CloudStorageUpdateManyWithoutFilesNestedInput = {
@@ -3832,6 +3903,17 @@ export namespace Prisma {
     not?: NestedDateTimeFilter<$PrismaModel> | Date | string
   }
 
+  export type NestedDateTimeNullableFilter<$PrismaModel = never> = {
+    equals?: Date | string | DateTimeFieldRefInput<$PrismaModel> | null
+    in?: Date[] | string[] | ListDateTimeFieldRefInput<$PrismaModel> | null
+    notIn?: Date[] | string[] | ListDateTimeFieldRefInput<$PrismaModel> | null
+    lt?: Date | string | DateTimeFieldRefInput<$PrismaModel>
+    lte?: Date | string | DateTimeFieldRefInput<$PrismaModel>
+    gt?: Date | string | DateTimeFieldRefInput<$PrismaModel>
+    gte?: Date | string | DateTimeFieldRefInput<$PrismaModel>
+    not?: NestedDateTimeNullableFilter<$PrismaModel> | Date | string | null
+  }
+
   export type NestedStringWithAggregatesFilter<$PrismaModel = never> = {
     equals?: string | StringFieldRefInput<$PrismaModel>
     in?: string[] | ListStringFieldRefInput<$PrismaModel>
@@ -3890,6 +3972,31 @@ export namespace Prisma {
     _max?: NestedDateTimeFilter<$PrismaModel>
   }
 
+  export type NestedDateTimeNullableWithAggregatesFilter<$PrismaModel = never> = {
+    equals?: Date | string | DateTimeFieldRefInput<$PrismaModel> | null
+    in?: Date[] | string[] | ListDateTimeFieldRefInput<$PrismaModel> | null
+    notIn?: Date[] | string[] | ListDateTimeFieldRefInput<$PrismaModel> | null
+    lt?: Date | string | DateTimeFieldRefInput<$PrismaModel>
+    lte?: Date | string | DateTimeFieldRefInput<$PrismaModel>
+    gt?: Date | string | DateTimeFieldRefInput<$PrismaModel>
+    gte?: Date | string | DateTimeFieldRefInput<$PrismaModel>
+    not?: NestedDateTimeNullableWithAggregatesFilter<$PrismaModel> | Date | string | null
+    _count?: NestedIntNullableFilter<$PrismaModel>
+    _min?: NestedDateTimeNullableFilter<$PrismaModel>
+    _max?: NestedDateTimeNullableFilter<$PrismaModel>
+  }
+
+  export type NestedIntNullableFilter<$PrismaModel = never> = {
+    equals?: number | IntFieldRefInput<$PrismaModel> | null
+    in?: number[] | ListIntFieldRefInput<$PrismaModel> | null
+    notIn?: number[] | ListIntFieldRefInput<$PrismaModel> | null
+    lt?: number | IntFieldRefInput<$PrismaModel>
+    lte?: number | IntFieldRefInput<$PrismaModel>
+    gt?: number | IntFieldRefInput<$PrismaModel>
+    gte?: number | IntFieldRefInput<$PrismaModel>
+    not?: NestedIntNullableFilter<$PrismaModel> | number | null
+  }
+
   export type CloudStorageCreateWithoutFilesInput = {
     id?: string
     provider: string
@@ -3942,6 +4049,7 @@ export namespace Prisma {
     type: string
     createdAt?: Date | string
     updatedAt?: Date | string
+    deletedAt?: Date | string | null
   }
 
   export type FileUncheckedCreateWithoutCloudStoragesInput = {
@@ -3951,6 +4059,7 @@ export namespace Prisma {
     type: string
     createdAt?: Date | string
     updatedAt?: Date | string
+    deletedAt?: Date | string | null
   }
 
   export type FileCreateOrConnectWithoutCloudStoragesInput = {
@@ -3984,6 +4093,7 @@ export namespace Prisma {
     type?: StringFilter<"File"> | string
     createdAt?: DateTimeFilter<"File"> | Date | string
     updatedAt?: DateTimeFilter<"File"> | Date | string
+    deletedAt?: DateTimeNullableFilter<"File"> | Date | string | null
   }
 
   export type CloudStorageUpdateWithoutFilesInput = {
@@ -4014,6 +4124,7 @@ export namespace Prisma {
     type?: StringFieldUpdateOperationsInput | string
     createdAt?: DateTimeFieldUpdateOperationsInput | Date | string
     updatedAt?: DateTimeFieldUpdateOperationsInput | Date | string
+    deletedAt?: NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   }
 
   export type FileUncheckedUpdateWithoutCloudStoragesInput = {
@@ -4023,6 +4134,7 @@ export namespace Prisma {
     type?: StringFieldUpdateOperationsInput | string
     createdAt?: DateTimeFieldUpdateOperationsInput | Date | string
     updatedAt?: DateTimeFieldUpdateOperationsInput | Date | string
+    deletedAt?: NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   }
 
   export type FileUncheckedUpdateManyWithoutCloudStoragesInput = {
@@ -4032,6 +4144,7 @@ export namespace Prisma {
     type?: StringFieldUpdateOperationsInput | string
     createdAt?: DateTimeFieldUpdateOperationsInput | Date | string
     updatedAt?: DateTimeFieldUpdateOperationsInput | Date | string
+    deletedAt?: NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   }
 
 
