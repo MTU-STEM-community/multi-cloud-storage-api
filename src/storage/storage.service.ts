@@ -1,28 +1,56 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { PrismaService } from '../prisma/prisma.service';
+import { EncryptionService } from 'src/utils/encryption.util';
 import { Dropbox } from 'dropbox';
 
 @Injectable()
 export class StorageService {
+  private readonly logger = new Logger(StorageService.name);
+
   constructor(
     private readonly configService: ConfigService,
     private readonly prisma: PrismaService,
+    private readonly encryptionService: EncryptionService,
   ) {}
 
-  // Add methods to upload, list, and download files
-  async uploadFileToProvider(
-    file: Express.Multer.File,
-    provider: string,
-  ): Promise<string> {
-    // Handle provider-specific uploads
-    switch (provider) {
-      case 'google':
-        return this.uploadToGoogleCloud(file);
-      case 'dropbox':
-        return this.uploadToDropbox(file);
-      default:
-        throw new Error('Unsupported provider');
+  async uploadFileToProvider(file: Express.Multer.File, provider: string) {
+    let url: string;
+    try {
+      switch (provider) {
+        case 'google':
+          url = await this.uploadToGoogleCloud(file);
+          break;
+        case 'dropbox':
+          url = await this.uploadToDropbox(file);
+          break;
+        default:
+          throw new Error('Unsupported provider');
+      }
+
+      const encryptedKey = await this.encryptionService.encrypt(
+        this.configService.get(`${provider.toUpperCase()}_API_KEY`),
+        this.configService.get('ENCRYPTION_SECRET'),
+      );
+
+      await this.prisma.file.create({
+        data: {
+          name: file.originalname,
+          size: file.size,
+          type: file.mimetype,
+          cloudStorages: {
+            create: {
+              provider,
+              apiKey: encryptedKey,
+            },
+          },
+        },
+      });
+
+      return { url };
+    } catch (error) {
+      this.logger.error(`Upload failed: ${error.message}`);
+      throw error;
     }
   }
 
