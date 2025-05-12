@@ -220,6 +220,10 @@ export class StorageService {
 
     const dropbox = new Dropbox({ accessToken });
     const response = await dropbox.filesDownload({ path: `/${fileId}` });
-    return response.result.fileBinary;
+
+    const fileContents =
+      (response.result as any).fileBinary ||
+      (response.result as any).fileContents;
+    return Buffer.from(fileContents);
   }
 }
