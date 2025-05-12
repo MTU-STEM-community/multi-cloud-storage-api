@@ -1,6 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { PrismaService } from '../prisma/prisma.service';
+import { Dropbox } from 'dropbox';
 
 @Injectable()
 export class StorageService {
@@ -20,6 +21,17 @@ export class StorageService {
         return this.uploadToGoogleCloud(file);
       case 'dropbox':
         return this.uploadToDropbox(file);
+      default:
+        throw new Error('Unsupported provider');
+    }
+  }
+
+  async listFilesFromProvider(provider: string): Promise<string[]> {
+    switch (provider) {
+      case 'google':
+        return this.listFilesFromGoogleCloud();
+      case 'dropbox':
+        return this.listFilesFromDropbox();
       default:
         throw new Error('Unsupported provider');
     }
@@ -96,5 +108,90 @@ export class StorageService {
     } catch (error) {
       throw new Error(`Dropbox upload error: ${error.message}`);
     }
+  }
+
+  private async listFilesFromGoogleCloud(): Promise<string[]> {
+    const { Storage } = await import('@google-cloud/storage');
+    const projectId = this.configService.get<string>('GOOGLE_CLOUD_PROJECT_ID');
+    const bucketName = this.configService.get<string>(
+      'GOOGLE_CLOUD_BUCKET_NAME',
+    );
+    const keyFilePath = this.configService.get<string>(
+      'GOOGLE_CLOUD_KEYFILE_PATH',
+    );
+
+    if (!projectId || !bucketName || !keyFilePath) {
+      throw new Error(
+        'Google Cloud configuration is missing in environment variables.',
+      );
+    }
+
+    const storage = new Storage({ projectId, keyFilename: keyFilePath });
+    const bucket = storage.bucket(bucketName);
+    const [files] = await bucket.getFiles();
+    return files.map((file) => file.name);
+  }
+
+  private async listFilesFromDropbox(): Promise<string[]> {
+    const accessToken = this.configService.get<string>('DROPBOX_ACCESS_TOKEN');
+    if (!accessToken) {
+      throw new Error(
+        'Dropbox access token is missing in environment variables.',
+      );
+    }
+
+    const dropbox = new Dropbox({ accessToken });
+    const response = await dropbox.filesListFolder({ path: '' });
+    return response.result.entries.map((entry) => entry.name);
+  }
+
+  async downloadFileFromProvider(
+    provider: string,
+    fileId: string,
+  ): Promise<Buffer> {
+    switch (provider) {
+      case 'google':
+        return this.downloadFromGoogleCloud(fileId);
+      case 'dropbox':
+        return this.downloadFromDropbox(fileId);
+      default:
+        throw new Error('Unsupported provider');
+    }
+  }
+
+  private async downloadFromGoogleCloud(fileId: string): Promise<Buffer> {
+    const { Storage } = await import('@google-cloud/storage');
+    const projectId = this.configService.get<string>('GOOGLE_CLOUD_PROJECT_ID');
+    const bucketName = this.configService.get<string>(
+      'GOOGLE_CLOUD_BUCKET_NAME',
+    );
+    const keyFilePath = this.configService.get<string>(
+      'GOOGLE_CLOUD_KEYFILE_PATH',
+    );
+
+    if (!projectId || !bucketName || !keyFilePath) {
+      throw new Error(
+        'Google Cloud configuration is missing in environment variables.',
+      );
+    }
+
+    const storage = new Storage({ projectId, keyFilename: keyFilePath });
+    const bucket = storage.bucket(bucketName);
+    const file = bucket.file(fileId);
+    const [contents] = await file.download();
+    return contents;
+  }
+
+  private async downloadFromDropbox(fileId: string): Promise<Buffer> {
+    const accessToken = this.configService.get<string>('DROPBOX_ACCESS_TOKEN');
+    if (!accessToken) {
+      throw new Error(
+        'Dropbox access token is missing in environment variables.',
+      );
+    }
+
+    const dropbox = new Dropbox({ accessToken });
+    const response = await dropbox.filesDownload({ path: `/${fileId}` });
+    return response.result.fileBinary;
   }
 }
