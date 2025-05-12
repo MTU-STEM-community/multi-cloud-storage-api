@@ -226,4 +226,38 @@ export class StorageService {
       (response.result as any).fileContents;
     return Buffer.from(fileContents);
   }
+
+  async deleteFileFromProvider(
+    provider: string,
+    fileId: string,
+  ): Promise<void> {
+    switch (provider) {
+      case 'google':
+        return this.deleteFromGoogleCloud(fileId);
+      case 'dropbox':
+        return this.deleteFromDropbox(fileId);
+      default:
+        throw new Error('Unsupported provider');
+    }
+  }
+
+  private async deleteFromGoogleCloud(fileId: string): Promise<void> {
+    const { Storage } = await import('@google-cloud/storage');
+    const storage = new Storage({
+      projectId: this.configService.get('GOOGLE_CLOUD_PROJECT_ID'),
+      keyFilename: this.configService.get('GOOGLE_CLOUD_KEYFILE_PATH'),
+    });
+    await storage
+      .bucket(this.configService.get('GOOGLE_CLOUD_BUCKET_NAME'))
+      .file(fileId)
+      .delete();
+  }
+
+  private async deleteFromDropbox(fileId: string): Promise<void> {
+    const { Dropbox } = await import('dropbox');
+    const dropbox = new Dropbox({
+      accessToken: this.configService.get('DROPBOX_ACCESS_TOKEN'),
+    });
+    await dropbox.filesDeleteV2({ path: `/${fileId}` });
+  }
 }
