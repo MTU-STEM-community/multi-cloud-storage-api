@@ -1,0 +1,27 @@
+generator client {
+  provider = "prisma-client-js"
+  output   = "../src/generated/client"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model File {
+  id            String         @id @default(cuid())
+  name          String
+  size          Int
+  type          String
+  createdAt     DateTime       @default(now())
+  updatedAt     DateTime       @updatedAt
+  cloudStorages CloudStorage[]
+}
+
+model CloudStorage {
+  id        String   @id @default(cuid())
+  provider  String
+  apiKey    String   @db.Text
+  files     File[]
+  createdAt DateTime @default(now())
+}
