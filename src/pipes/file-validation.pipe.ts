@@ -1,5 +1,4 @@
 import { PipeTransform, Injectable, BadRequestException } from '@nestjs/common';
-import { Express } from 'express';
 
 @Injectable()
 export class FileValidationPipe implements PipeTransform {
@@ -8,7 +7,12 @@ export class FileValidationPipe implements PipeTransform {
       throw new BadRequestException('File is required');
     }
 
-    const validMimeTypes = ['image/jpeg', 'image/png', 'application/pdf'];
+    const validMimeTypes = [
+      'image/jpeg',
+      'image/png',
+      'application/pdf',
+      'text/plain',
+    ];
     if (!validMimeTypes.includes(file.mimetype)) {
       throw new BadRequestException('Invalid file type');
     }
