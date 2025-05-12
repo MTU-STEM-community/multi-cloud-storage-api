@@ -1,6 +1,7 @@
 import { Controller, Post, Get, Param, UploadedFile, UseInterceptors } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { StorageService } from './storage.service';
+import { FileValidationPipe } from '../pipes/file-validation.pipe';
 
 @Controller('storage')
 export class StorageController {
@@ -9,7 +10,7 @@ export class StorageController {
   @Post('upload/:provider')
   @UseInterceptors(FileInterceptor('file'))
   async uploadFile(
-    @UploadedFile() file: Express.Multer.File,
+    @UploadedFile(FileValidationPipe) file: Express.Multer.File,
     @Param('provider') provider: string,
   ) {
     return this.storageService.uploadFileToProvider(file, provider);
@@ -17,11 +18,14 @@ export class StorageController {
 
   @Get('list/:provider')
   async listFiles(@Param('provider') provider: string) {
-    // Fetch and return file list from the provider
+    return this.storageService.listFilesFromProvider(provider);
   }
 
   @Get('download/:provider/:fileId')
-  async downloadFile(@Param('provider') provider: string, @Param('fileId') fileId: string) {
-    // Download file logic here
+  async downloadFile(
+    @Param('provider') provider: string,
+    @Param('fileId') fileId: string,
+  ) {
+    return this.storageService.downloadFileFromProvider(provider, fileId);
   }
 }
