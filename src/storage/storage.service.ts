@@ -16,6 +16,8 @@ export class StorageService {
 
   async uploadFileToProvider(file: Express.Multer.File, provider: string) {
     let url: string;
+    let storageName: string;
+
     try {
       if (!file || !file.buffer) {
         throw new BadRequestException('Invalid file data');
@@ -47,12 +49,15 @@ export class StorageService {
         );
       }
 
+      // Generate a timestamped filename for storage
+      storageName = `${Date.now()}_${file.originalname}`;
+
       switch (provider) {
         case 'google':
-          url = await this.uploadToGoogleCloud(file);
+          url = await this.uploadToGoogleCloud(file, storageName);
           break;
         case 'dropbox':
-          url = await this.uploadToDropbox(file);
+          url = await this.uploadToDropbox(file, storageName);
           break;
         default:
           throw new BadRequestException('Unsupported provider');
@@ -75,7 +80,8 @@ export class StorageService {
         );
       }
 
-      await this.prisma.file.create({
+      // Save file metadata in database
+      const savedFile = await this.prisma.file.create({
         data: {
           name: file.originalname,
           size: file.size,
@@ -89,26 +95,32 @@ export class StorageService {
         },
       });
 
-      return { url };
+      return { url, storageName, fileId: savedFile.id };
     } catch (error) {
       this.logger.error(`Upload failed: ${error.message}`);
       throw error;
     }
   }
 
-  async listFilesFromProvider(provider: string): Promise<string[]> {
-    switch (provider) {
-      case 'google':
-        return this.listFilesFromGoogleCloud();
-      case 'dropbox':
-        return this.listFilesFromDropbox();
-      default:
-        throw new BadRequestException('Unsupported provider');
+  async listFilesFromProvider(provider: string): Promise<any[]> {
+    try {
+      switch (provider) {
+        case 'google':
+          return this.listFilesFromGoogleCloud();
+        case 'dropbox':
+          return this.listFilesFromDropbox();
+        default:
+          throw new BadRequestException('Unsupported provider');
+      }
+    } catch (error) {
+      this.logger.error(`Listing files failed: ${error.message}`);
+      throw error;
     }
   }
 
   private async uploadToGoogleCloud(
     file: Express.Multer.File,
+    fileName: string,
   ): Promise<string> {
     const { Storage } = await import('@google-cloud/storage');
 
@@ -128,12 +140,16 @@ export class StorageService {
 
     const storage = new Storage({ projectId, keyFilename: keyFilePath });
     const bucket = storage.bucket(bucketName);
-    const fileName = `${Date.now()}_${file.originalname}`;
     const blob = bucket.file(fileName);
 
     return new Promise((resolve, reject) => {
       const stream = blob.createWriteStream({
-        metadata: { contentType: file.mimetype },
+        metadata: {
+          contentType: file.mimetype,
+          metadata: {
+            originalFileName: file.originalname
+          }
+        },
       });
 
       stream.on('error', (err) =>
@@ -147,7 +163,7 @@ export class StorageService {
     });
   }
 
-  private async uploadToDropbox(file: Express.Multer.File): Promise<string> {
+  private async uploadToDropbox(file: Express.Multer.File, fileName: string): Promise<string> {
     const accessToken = this.configService.get<string>('DROPBOX_ACCESS_TOKEN');
 
     if (!accessToken) {
@@ -157,7 +173,6 @@ export class StorageService {
     }
 
     const dropbox = new Dropbox({ accessToken });
-    const fileName = `${Date.now()}_${file.originalname}`;
 
     try {
       if (!file.buffer || !(file.buffer instanceof Buffer)) {
@@ -167,6 +182,8 @@ export class StorageService {
       const response = await dropbox.filesUpload({
         path: `/${fileName}`,
         contents: file.buffer,
+        mode: { '.tag': 'add' },
+        autorename: true,
       });
 
       if (!response.result) {
@@ -183,7 +200,7 @@ export class StorageService {
     }
   }
 
-  private async listFilesFromGoogleCloud(): Promise<string[]> {
+  private async listFilesFromGoogleCloud(): Promise<any[]> {
     const { Storage } = await import('@google-cloud/storage');
     const projectId = this.configService.get<string>('GOOGLE_CLOUD_PROJECT_ID');
     const bucketName = this.configService.get<string>(
@@ -202,10 +219,18 @@ export class StorageService {
     const storage = new Storage({ projectId, keyFilename: keyFilePath });
     const bucket = storage.bucket(bucketName);
     const [files] = await bucket.getFiles();
-    return files.map((file) => file.name);
+
+    return files.map((file) => ({
+      name: file.name,
+      size: file.metadata.size,
+      contentType: file.metadata.contentType,
+      created: file.metadata.timeCreated,
+      updated: file.metadata.updated,
+      originalName: file.metadata.metadata?.originalFileName || file.name,
+    }));
   }
 
-  private async listFilesFromDropbox(): Promise<string[]> {
+  private async listFilesFromDropbox(): Promise<any[]> {
     const accessToken = this.configService.get<string>('DROPBOX_ACCESS_TOKEN');
     if (!accessToken) {
       throw new BadRequestException(
@@ -215,20 +240,32 @@ export class StorageService {
 
     const dropbox = new Dropbox({ accessToken });
     const response = await dropbox.filesListFolder({ path: '' });
-    return response.result.entries.map((entry) => entry.name);
+
+    return response.result.entries.map((entry) => ({
+      name: entry.name,
+      path: entry.path_lower,
+      size: (entry as any).size || 'Unknown',
+      contentType: (entry as any).content_type || 'Unknown',
+      modified: (entry as any).server_modified || 'Unknown',
+    }));
   }
 
   async downloadFileFromProvider(
     provider: string,
     fileId: string,
   ): Promise<Buffer> {
-    switch (provider) {
-      case 'google':
-        return this.downloadFromGoogleCloud(fileId);
-      case 'dropbox':
-        return this.downloadFromDropbox(fileId);
-      default:
-        throw new BadRequestException('Unsupported provider');
+    try {
+      switch (provider) {
+        case 'google':
+          return this.downloadFromGoogleCloud(fileId);
+        case 'dropbox':
+          return this.downloadFromDropbox(fileId);
+        default:
+          throw new BadRequestException('Unsupported provider');
+      }
+    } catch (error) {
+      this.logger.error(`Download failed: ${error.message}`);
+      throw error;
     }
   }
 
@@ -251,8 +288,13 @@ export class StorageService {
     const storage = new Storage({ projectId, keyFilename: keyFilePath });
     const bucket = storage.bucket(bucketName);
     const file = bucket.file(fileId);
-    const [contents] = await file.download();
-    return contents;
+
+    try {
+      const [contents] = await file.download();
+      return contents;
+    } catch (error) {
+      throw new BadRequestException(`Failed to download file from Google Cloud: ${error.message}`);
+    }
   }
 
   private async downloadFromDropbox(fileId: string): Promise<Buffer> {
@@ -263,26 +305,40 @@ export class StorageService {
       );
     }
 
-    const dropbox = new Dropbox({ accessToken });
-    const response = await dropbox.filesDownload({ path: `/${fileId}` });
+    try {
+      const dropbox = new Dropbox({ accessToken });
+      const response = await dropbox.filesDownload({ path: `/${fileId}` });
 
-    const fileContents =
-      (response.result as any).fileBinary ||
-      (response.result as any).fileContents;
-    return Buffer.from(fileContents);
+      // Handle the file data
+      const fileContents = (response.result as any).fileBinary ||
+                         (response.result as any).fileContents;
+
+      if (!fileContents) {
+        throw new BadRequestException('Failed to retrieve file contents from Dropbox');
+      }
+
+      return Buffer.from(fileContents);
+    } catch (error) {
+      throw new BadRequestException(`Failed to download file from Dropbox: ${error.message}`);
+    }
   }
 
   async deleteFileFromProvider(
     provider: string,
     fileId: string,
   ): Promise<void> {
-    switch (provider) {
-      case 'google':
-        return this.deleteFromGoogleCloud(fileId);
-      case 'dropbox':
-        return this.deleteFromDropbox(fileId);
-      default:
-        throw new BadRequestException('Unsupported provider');
+    try {
+      switch (provider) {
+        case 'google':
+          return this.deleteFromGoogleCloud(fileId);
+        case 'dropbox':
+          return this.deleteFromDropbox(fileId);
+        default:
+          throw new BadRequestException('Unsupported provider');
+      }
+    } catch (error) {
+      this.logger.error(`Delete failed: ${error.message}`);
+      throw error;
     }
   }
 
@@ -302,8 +358,12 @@ export class StorageService {
       );
     }
 
-    const storage = new Storage({ projectId, keyFilename: keyFilePath });
-    await storage.bucket(bucketName).file(fileId).delete();
+    try {
+      const storage = new Storage({ projectId, keyFilename: keyFilePath });
+      await storage.bucket(bucketName).file(fileId).delete();
+    } catch (error) {
+      throw new BadRequestException(`Failed to delete file from Google Cloud: ${error.message}`);
+    }
   }
 
   private async deleteFromDropbox(fileId: string): Promise<void> {
@@ -314,7 +374,11 @@ export class StorageService {
       );
     }
 
-    const dropbox = new Dropbox({ accessToken: accessToken });
-    await dropbox.filesDeleteV2({ path: `/${fileId}` });
+    try {
+      const dropbox = new Dropbox({ accessToken });
+      await dropbox.filesDeleteV2({ path: `/${fileId}` });
+    } catch (error) {
+      throw new BadRequestException(`Failed to delete file from Dropbox: ${error.message}`);
+    }
   }
 }
