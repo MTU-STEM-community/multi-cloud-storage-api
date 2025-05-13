@@ -49,7 +49,6 @@ export class StorageService {
         );
       }
 
-      // Generate a timestamped filename for storage
       storageName = `${Date.now()}_${file.originalname}`;
 
       switch (provider) {
@@ -80,7 +79,6 @@ export class StorageService {
         );
       }
 
-      // Save file metadata in database
       const savedFile = await this.prisma.file.create({
         data: {
           name: file.originalname,
@@ -147,8 +145,8 @@ export class StorageService {
         metadata: {
           contentType: file.mimetype,
           metadata: {
-            originalFileName: file.originalname
-          }
+            originalFileName: file.originalname,
+          },
         },
       });
 
@@ -163,7 +161,10 @@ export class StorageService {
     });
   }
 
-  private async uploadToDropbox(file: Express.Multer.File, fileName: string): Promise<string> {
+  private async uploadToDropbox(
+    file: Express.Multer.File,
+    fileName: string,
+  ): Promise<string> {
     const accessToken = this.configService.get<string>('DROPBOX_ACCESS_TOKEN');
 
     if (!accessToken) {
@@ -293,7 +294,9 @@ export class StorageService {
       const [contents] = await file.download();
       return contents;
     } catch (error) {
-      throw new BadRequestException(`Failed to download file from Google Cloud: ${error.message}`);
+      throw new BadRequestException(
+        `Failed to download file from Google Cloud: ${error.message}`,
+      );
     }
   }
 
@@ -309,17 +312,21 @@ export class StorageService {
       const dropbox = new Dropbox({ accessToken });
       const response = await dropbox.filesDownload({ path: `/${fileId}` });
 
-      // Handle the file data
-      const fileContents = (response.result as any).fileBinary ||
-                         (response.result as any).fileContents;
+      const fileContents =
+        (response.result as any).fileBinary ||
+        (response.result as any).fileContents;
 
       if (!fileContents) {
-        throw new BadRequestException('Failed to retrieve file contents from Dropbox');
+        throw new BadRequestException(
+          'Failed to retrieve file contents from Dropbox',
+        );
       }
 
       return Buffer.from(fileContents);
     } catch (error) {
-      throw new BadRequestException(`Failed to download file from Dropbox: ${error.message}`);
+      throw new BadRequestException(
+        `Failed to download file from Dropbox: ${error.message}`,
+      );
     }
   }
 
@@ -362,7 +369,9 @@ export class StorageService {
       const storage = new Storage({ projectId, keyFilename: keyFilePath });
       await storage.bucket(bucketName).file(fileId).delete();
     } catch (error) {
-      throw new BadRequestException(`Failed to delete file from Google Cloud: ${error.message}`);
+      throw new BadRequestException(
+        `Failed to delete file from Google Cloud: ${error.message}`,
+      );
     }
   }
 
@@ -378,7 +387,9 @@ export class StorageService {
       const dropbox = new Dropbox({ accessToken });
       await dropbox.filesDeleteV2({ path: `/${fileId}` });
     } catch (error) {
-      throw new BadRequestException(`Failed to delete file from Dropbox: ${error.message}`);
+      throw new BadRequestException(
+        `Failed to delete file from Dropbox: ${error.message}`,
+      );
     }
   }
 }
