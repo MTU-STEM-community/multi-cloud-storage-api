@@ -119,9 +119,10 @@ export class StorageService {
     const fileName = `${Date.now()}_${file.originalname}`;
 
     try {
+      const fileContents = file.buffer;
       const response = await dropbox.filesUpload({
         path: `/${fileName}`,
-        contents: file.buffer,
+        contents: fileContents,
       });
 
       if (!response.result) {
@@ -132,7 +133,7 @@ export class StorageService {
         path: response.result.path_lower!,
       });
 
-      return linkResponse.result.url.replace('?dl=0', '?raw=1'); // Direct link to file
+      return linkResponse.result.url.replace('?dl=0', '?raw=1');
     } catch (error) {
       throw new Error(`Dropbox upload error: ${error.message}`);
     }
