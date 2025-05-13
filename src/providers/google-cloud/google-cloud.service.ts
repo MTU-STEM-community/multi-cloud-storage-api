@@ -152,7 +152,11 @@ export class GoogleCloudService implements CloudStorageProvider {
     }
   }
 
-  async saveFileRecord(file: Express.Multer.File): Promise<string> {
+  async saveFileRecord(
+    file: Express.Multer.File,
+    url: string,
+    storageName: string,
+  ): Promise<string> {
     const encryptionSecret = this.configService.get('ENCRYPTION_SECRET');
     if (!encryptionSecret) {
       throw new BadRequestException(
