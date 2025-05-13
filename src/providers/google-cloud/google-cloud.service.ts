@@ -181,6 +181,8 @@ export class GoogleCloudService implements CloudStorageProvider {
         name: file.originalname,
         size: file.size,
         type: file.mimetype,
+        url: url,
+        storageName: storageName,
         cloudStorages: {
           create: {
             provider: 'google',
