@@ -12,7 +12,7 @@ import {
 } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { StorageService } from './storage.service';
-import { FileValidationPipe } from '../pipes/file-validation.pipe';
+import { FileValidationPipe } from '../common/pipes/file-validation.pipe';
 import { Response } from 'express';
 import {
   ApiTags,

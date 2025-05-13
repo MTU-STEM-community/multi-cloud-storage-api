@@ -1,6 +1,6 @@
 import { NestFactory } from '@nestjs/core';
 import { AppModule } from './app.module';
-import { CloudStorageFilter } from './filters/cloud-storage.filter';
+import { CloudStorageFilter } from './common/filters/cloud-storage.filter';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 
 async function bootstrap() {
