@@ -7,13 +7,12 @@ import {
   UseInterceptors,
   Delete,
   Res,
-  Body,
   HttpStatus,
   Query,
 } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { StorageService } from './storage.service';
-import { FileValidationPipe } from '../pipes/file-validation.pipe';
+import { FileValidationPipe } from '../common/pipes/file-validation.pipe';
 import { Response } from 'express';
 import {
   ApiTags,
@@ -76,8 +75,9 @@ export class StorageController {
     );
     return {
       url: result.url,
-      originalName: file.originalname,
+      originalName: result.originalName,
       storageName: result.storageName,
+      fileId: result.fileId,
     };
   }
 
