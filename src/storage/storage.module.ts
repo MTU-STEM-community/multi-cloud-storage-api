@@ -1,11 +1,12 @@
 import { Module } from '@nestjs/common';
 import { StorageController } from './storage.controller';
 import { StorageService } from './storage.service';
-import { PrismaService } from '../prisma/prisma.service';
-import { EncryptionService } from 'src/utils/encryption.util';
+import { GoogleCloudModule } from '../providers/google-cloud/google-cloud.module';
+import { DropboxModule } from '../providers/dropbox/dropbox.module';
 
 @Module({
+  imports: [GoogleCloudModule, DropboxModule],
   controllers: [StorageController],
-  providers: [StorageService, PrismaService, EncryptionService]
+  providers: [StorageService],
 })
 export class StorageModule {}

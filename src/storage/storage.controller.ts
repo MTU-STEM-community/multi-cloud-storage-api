@@ -7,7 +7,6 @@ import {
   UseInterceptors,
   Delete,
   Res,
-  Body,
   HttpStatus,
   Query,
 } from '@nestjs/common';
@@ -76,8 +75,9 @@ export class StorageController {
     );
     return {
       url: result.url,
-      originalName: file.originalname,
+      originalName: result.originalName,
       storageName: result.storageName,
+      fileId: result.fileId,
     };
   }
 

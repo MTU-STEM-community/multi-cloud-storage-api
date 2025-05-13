@@ -1,112 +1,81 @@
 import { Injectable, Logger, BadRequestException } from '@nestjs/common';
-import { ConfigService } from '@nestjs/config';
-import { PrismaService } from '../prisma/prisma.service';
-import { EncryptionService } from 'src/utils/encryption.util';
-import { Dropbox } from 'dropbox';
+import { GoogleCloudService } from '../providers/google-cloud/google-cloud.service';
+import { DropboxService } from '../providers/dropbox/dropbox.service';
+import {
+  FileUploadResult,
+  FileListItem,
+} from '../common/interfaces/cloud-storage.interface';
 
 @Injectable()
 export class StorageService {
   private readonly logger = new Logger(StorageService.name);
 
   constructor(
-    private readonly configService: ConfigService,
-    private readonly prisma: PrismaService,
-    private readonly encryptionService: EncryptionService,
+    private readonly googleCloudService: GoogleCloudService,
+    private readonly dropboxService: DropboxService,
   ) {}
 
-  async uploadFileToProvider(file: Express.Multer.File, provider: string) {
-    let url: string;
-    let storageName: string;
-
+  async uploadFileToProvider(
+    file: Express.Multer.File,
+    provider: string,
+  ): Promise<FileUploadResult> {
     try {
       if (!file || !file.buffer) {
         throw new BadRequestException('Invalid file data');
       }
 
-      const encryptionSecret = this.configService.get('ENCRYPTION_SECRET');
-
-      if (provider === 'dropbox') {
-        const accessToken = this.configService.get('DROPBOX_ACCESS_TOKEN');
-        if (!accessToken) {
-          throw new BadRequestException(
-            'DROPBOX_ACCESS_TOKEN is not set in environment variables',
-          );
-        }
-      } else {
-        const apiKey = this.configService.get(
-          `${provider.toUpperCase()}_API_KEY`,
-        );
-        if (!apiKey) {
-          throw new BadRequestException(
-            `${provider.toUpperCase()}_API_KEY is not set in environment variables`,
-          );
-        }
-      }
-
-      if (!encryptionSecret) {
-        throw new BadRequestException(
-          'ENCRYPTION_SECRET is not set in environment variables',
-        );
-      }
-
-      storageName = `${Date.now()}_${file.originalname}`;
+      const storageName = `${Date.now()}_${file.originalname}`;
+      let url: string;
+      let fileId: string;
 
       switch (provider) {
         case 'google':
-          url = await this.uploadToGoogleCloud(file, storageName);
+          const googleResult = await this.googleCloudService.uploadFile(
+            file,
+            storageName,
+          );
+          url = googleResult.url;
+          fileId = await this.googleCloudService.saveFileRecord(
+            file,
+            url,
+            storageName,
+          );
           break;
         case 'dropbox':
-          url = await this.uploadToDropbox(file, storageName);
+          const dropboxResult = await this.dropboxService.uploadFile(
+            file,
+            storageName,
+          );
+          url = dropboxResult.url;
+          fileId = await this.dropboxService.saveFileRecord(
+            file,
+            url,
+            storageName,
+          );
           break;
         default:
           throw new BadRequestException('Unsupported provider');
       }
 
-      let encryptedKey;
-      if (provider === 'dropbox') {
-        const accessToken = this.configService.get('DROPBOX_ACCESS_TOKEN');
-        encryptedKey = await this.encryptionService.encrypt(
-          accessToken,
-          encryptionSecret,
-        );
-      } else {
-        const apiKey = this.configService.get(
-          `${provider.toUpperCase()}_API_KEY`,
-        );
-        encryptedKey = await this.encryptionService.encrypt(
-          apiKey,
-          encryptionSecret,
-        );
-      }
-
-      const savedFile = await this.prisma.file.create({
-        data: {
-          name: file.originalname,
-          size: file.size,
-          type: file.mimetype,
-          cloudStorages: {
-            create: {
-              provider,
-              apiKey: encryptedKey,
-            },
-          },
-        },
-      });
-
-      return { url, storageName, fileId: savedFile.id };
+      return {
+        url,
+        originalName: file.originalname,
+        storageName,
+        fileId,
+      };
     } catch (error) {
       this.logger.error(`Upload failed: ${error.message}`);
       throw error;
     }
   }
 
-  async listFilesFromProvider(provider: string): Promise<any[]> {
+  async listFilesFromProvider(provider: string): Promise<FileListItem[]> {
     try {
       switch (provider) {
         case 'google':
-          return this.listFilesFromGoogleCloud();
+          return this.googleCloudService.listFiles();
         case 'dropbox':
-          return this.listFilesFromDropbox();
+          return this.dropboxService.listFiles();
         default:
           throw new BadRequestException('Unsupported provider');
       }
@@ -116,141 +85,6 @@ export class StorageService {
     }
   }
 
-  private async uploadToGoogleCloud(
-    file: Express.Multer.File,
-    fileName: string,
-  ): Promise<string> {
-    const { Storage } = await import('@google-cloud/storage');
-
-    const projectId = this.configService.get<string>('GOOGLE_CLOUD_PROJECT_ID');
-    const bucketName = this.configService.get<string>(
-      'GOOGLE_CLOUD_BUCKET_NAME',
-    );
-    const keyFilePath = this.configService.get<string>(
-      'GOOGLE_CLOUD_KEYFILE_PATH',
-    );
-
-    if (!projectId || !bucketName || !keyFilePath) {
-      throw new BadRequestException(
-        'Google Cloud configuration is missing in environment variables.',
-      );
-    }
-
-    const storage = new Storage({ projectId, keyFilename: keyFilePath });
-    const bucket = storage.bucket(bucketName);
-    const blob = bucket.file(fileName);
-
-    return new Promise((resolve, reject) => {
-      const stream = blob.createWriteStream({
-        metadata: {
-          contentType: file.mimetype,
-          metadata: {
-            originalFileName: file.originalname,
-          },
-        },
-      });
-
-      stream.on('error', (err) =>
-        reject(`Google Cloud upload error: ${err.message}`),
-      );
-      stream.on('finish', () => {
-        resolve(`https://storage.googleapis.com/${bucketName}/${fileName}`);
-      });
-
-      stream.end(file.buffer);
-    });
-  }
-
-  private async uploadToDropbox(
-    file: Express.Multer.File,
-    fileName: string,
-  ): Promise<string> {
-    const accessToken = this.configService.get<string>('DROPBOX_ACCESS_TOKEN');
-
-    if (!accessToken) {
-      throw new BadRequestException(
-        'DROPBOX_ACCESS_TOKEN is missing in environment variables.',
-      );
-    }
-
-    const dropbox = new Dropbox({ accessToken });
-
-    try {
-      if (!file.buffer || !(file.buffer instanceof Buffer)) {
-        throw new BadRequestException('Invalid file buffer');
-      }
-
-      const response = await dropbox.filesUpload({
-        path: `/${fileName}`,
-        contents: file.buffer,
-        mode: { '.tag': 'add' },
-        autorename: true,
-      });
-
-      if (!response.result) {
-        throw new BadRequestException('Failed to upload file to Dropbox.');
-      }
-
-      const linkResponse = await dropbox.sharingCreateSharedLinkWithSettings({
-        path: response.result.path_lower!,
-      });
-
-      return linkResponse.result.url.replace('?dl=0', '?raw=1');
-    } catch (error) {
-      throw new BadRequestException(`Dropbox upload error: ${error.message}`);
-    }
-  }
-
-  private async listFilesFromGoogleCloud(): Promise<any[]> {
-    const { Storage } = await import('@google-cloud/storage');
-    const projectId = this.configService.get<string>('GOOGLE_CLOUD_PROJECT_ID');
-    const bucketName = this.configService.get<string>(
-      'GOOGLE_CLOUD_BUCKET_NAME',
-    );
-    const keyFilePath = this.configService.get<string>(
-      'GOOGLE_CLOUD_KEYFILE_PATH',
-    );
-
-    if (!projectId || !bucketName || !keyFilePath) {
-      throw new BadRequestException(
-        'Google Cloud configuration is missing in environment variables.',
-      );
-    }
-
-    const storage = new Storage({ projectId, keyFilename: keyFilePath });
-    const bucket = storage.bucket(bucketName);
-    const [files] = await bucket.getFiles();
-
-    return files.map((file) => ({
-      name: file.name,
-      size: file.metadata.size,
-      contentType: file.metadata.contentType,
-      created: file.metadata.timeCreated,
-      updated: file.metadata.updated,
-      originalName: file.metadata.metadata?.originalFileName || file.name,
-    }));
-  }
-
-  private async listFilesFromDropbox(): Promise<any[]> {
-    const accessToken = this.configService.get<string>('DROPBOX_ACCESS_TOKEN');
-    if (!accessToken) {
-      throw new BadRequestException(
-        'DROPBOX_ACCESS_TOKEN is missing in environment variables.',
-      );
-    }
-
-    const dropbox = new Dropbox({ accessToken });
-    const response = await dropbox.filesListFolder({ path: '' });
-
-    return response.result.entries.map((entry) => ({
-      name: entry.name,
-      path: entry.path_lower,
-      size: (entry as any).size || 'Unknown',
-      contentType: (entry as any).content_type || 'Unknown',
-      modified: (entry as any).server_modified || 'Unknown',
-    }));
-  }
-
   async downloadFileFromProvider(
     provider: string,
     fileId: string,
@@ -258,75 +92,15 @@ export class StorageService {
     try {
       switch (provider) {
         case 'google':
-          return this.downloadFromGoogleCloud(fileId);
+          return await this.googleCloudService.downloadFile(fileId);
         case 'dropbox':
-          return this.downloadFromDropbox(fileId);
+          return await this.dropboxService.downloadFile(fileId);
         default:
           throw new BadRequestException('Unsupported provider');
       }
     } catch (error) {
       this.logger.error(`Download failed: ${error.message}`);
       throw error;
-    }
-  }
-
-  private async downloadFromGoogleCloud(fileId: string): Promise<Buffer> {
-    const { Storage } = await import('@google-cloud/storage');
-    const projectId = this.configService.get<string>('GOOGLE_CLOUD_PROJECT_ID');
-    const bucketName = this.configService.get<string>(
-      'GOOGLE_CLOUD_BUCKET_NAME',
-    );
-    const keyFilePath = this.configService.get<string>(
-      'GOOGLE_CLOUD_KEYFILE_PATH',
-    );
-
-    if (!projectId || !bucketName || !keyFilePath) {
-      throw new BadRequestException(
-        'Google Cloud configuration is missing in environment variables.',
-      );
-    }
-
-    const storage = new Storage({ projectId, keyFilename: keyFilePath });
-    const bucket = storage.bucket(bucketName);
-    const file = bucket.file(fileId);
-
-    try {
-      const [contents] = await file.download();
-      return contents;
-    } catch (error) {
-      throw new BadRequestException(
-        `Failed to download file from Google Cloud: ${error.message}`,
-      );
-    }
-  }
-
-  private async downloadFromDropbox(fileId: string): Promise<Buffer> {
-    const accessToken = this.configService.get<string>('DROPBOX_ACCESS_TOKEN');
-    if (!accessToken) {
-      throw new BadRequestException(
-        'DROPBOX_ACCESS_TOKEN is missing in environment variables.',
-      );
-    }
-
-    try {
-      const dropbox = new Dropbox({ accessToken });
-      const response = await dropbox.filesDownload({ path: `/${fileId}` });
-
-      const fileContents =
-        (response.result as any).fileBinary ||
-        (response.result as any).fileContents;
-
-      if (!fileContents) {
-        throw new BadRequestException(
-          'Failed to retrieve file contents from Dropbox',
-        );
-      }
-
-      return Buffer.from(fileContents);
-    } catch (error) {
-      throw new BadRequestException(
-        `Failed to download file from Dropbox: ${error.message}`,
-      );
     }
   }
 
@@ -337,59 +111,15 @@ export class StorageService {
     try {
       switch (provider) {
         case 'google':
-          return this.deleteFromGoogleCloud(fileId);
+          return await this.googleCloudService.deleteFile(fileId);
         case 'dropbox':
-          return this.deleteFromDropbox(fileId);
+          return await this.dropboxService.deleteFile(fileId);
         default:
           throw new BadRequestException('Unsupported provider');
       }
     } catch (error) {
       this.logger.error(`Delete failed: ${error.message}`);
       throw error;
-    }
-  }
-
-  private async deleteFromGoogleCloud(fileId: string): Promise<void> {
-    const { Storage } = await import('@google-cloud/storage');
-    const projectId = this.configService.get<string>('GOOGLE_CLOUD_PROJECT_ID');
-    const bucketName = this.configService.get<string>(
-      'GOOGLE_CLOUD_BUCKET_NAME',
-    );
-    const keyFilePath = this.configService.get<string>(
-      'GOOGLE_CLOUD_KEYFILE_PATH',
-    );
-
-    if (!projectId || !bucketName || !keyFilePath) {
-      throw new BadRequestException(
-        'Google Cloud configuration is missing in environment variables.',
-      );
-    }
-
-    try {
-      const storage = new Storage({ projectId, keyFilename: keyFilePath });
-      await storage.bucket(bucketName).file(fileId).delete();
-    } catch (error) {
-      throw new BadRequestException(
-        `Failed to delete file from Google Cloud: ${error.message}`,
-      );
-    }
-  }
-
-  private async deleteFromDropbox(fileId: string): Promise<void> {
-    const accessToken = this.configService.get<string>('DROPBOX_ACCESS_TOKEN');
-    if (!accessToken) {
-      throw new BadRequestException(
-        'DROPBOX_ACCESS_TOKEN is missing in environment variables.',
-      );
-    }
-
-    try {
-      const dropbox = new Dropbox({ accessToken });
-      await dropbox.filesDeleteV2({ path: `/${fileId}` });
-    } catch (error) {
-      throw new BadRequestException(
-        `Failed to delete file from Dropbox: ${error.message}`,
-      );
     }
   }
 }
