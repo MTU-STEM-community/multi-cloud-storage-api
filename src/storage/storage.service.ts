@@ -18,6 +18,7 @@ export class StorageService {
   async uploadFileToProvider(
     file: Express.Multer.File,
     provider: string,
+    folderPath?: string,
   ): Promise<FileUploadResult> {
     try {
       if (!file || !file.buffer) {
@@ -28,29 +29,37 @@ export class StorageService {
       let url: string;
       let fileId: string;
 
+      if (folderPath) {
+        await this.createFolderInProvider(provider, folderPath);
+      }
+
       switch (provider) {
         case 'google':
           const googleResult = await this.googleCloudService.uploadFile(
             file,
             storageName,
+            folderPath,
           );
           url = googleResult.url;
           fileId = await this.googleCloudService.saveFileRecord(
             file,
             url,
             storageName,
+            folderPath,
           );
           break;
         case 'dropbox':
           const dropboxResult = await this.dropboxService.uploadFile(
             file,
             storageName,
+            folderPath,
           );
           url = dropboxResult.url;
           fileId = await this.dropboxService.saveFileRecord(
             file,
             url,
             storageName,
+            folderPath,
           );
           break;
         default:
@@ -62,6 +71,7 @@ export class StorageService {
         originalName: file.originalname,
         storageName,
         fileId,
+        folderPath,
       };
     } catch (error) {
       this.logger.error(`Upload failed: ${error.message}`);
@@ -69,13 +79,16 @@ export class StorageService {
     }
   }
 
-  async listFilesFromProvider(provider: string): Promise<FileListItem[]> {
+  async listFilesFromProvider(
+    provider: string,
+    folderPath?: string,
+  ): Promise<FileListItem[]> {
     try {
       switch (provider) {
         case 'google':
-          return this.googleCloudService.listFiles();
+          return this.googleCloudService.listFiles(folderPath);
         case 'dropbox':
-          return this.dropboxService.listFiles();
+          return this.dropboxService.listFiles(folderPath);
         default:
           throw new BadRequestException('Unsupported provider');
       }
@@ -88,13 +101,14 @@ export class StorageService {
   async downloadFileFromProvider(
     provider: string,
     fileId: string,
+    folderPath?: string,
   ): Promise<Buffer> {
     try {
       switch (provider) {
         case 'google':
-          return await this.googleCloudService.downloadFile(fileId);
+          return await this.googleCloudService.downloadFile(fileId, folderPath);
         case 'dropbox':
-          return await this.dropboxService.downloadFile(fileId);
+          return await this.dropboxService.downloadFile(fileId, folderPath);
         default:
           throw new BadRequestException('Unsupported provider');
       }
@@ -107,18 +121,48 @@ export class StorageService {
   async deleteFileFromProvider(
     provider: string,
     fileId: string,
+    folderPath?: string,
   ): Promise<void> {
     try {
       switch (provider) {
         case 'google':
-          return await this.googleCloudService.deleteFile(fileId);
+          return await this.googleCloudService.deleteFile(fileId, folderPath);
         case 'dropbox':
-          return await this.dropboxService.deleteFile(fileId);
+          return await this.dropboxService.deleteFile(fileId, folderPath);
         default:
           throw new BadRequestException('Unsupported provider');
       }
     } catch (error) {
       this.logger.error(`Delete failed: ${error.message}`);
+      throw error;
+    }
+  }
+
+  async createFolderInProvider(
+    provider: string,
+    folderPath: string,
+  ): Promise<void> {
+    if (!folderPath) {
+      throw new BadRequestException('Folder path is required');
+    }
+
+    try {
+      switch (provider) {
+        case 'google':
+          await this.googleCloudService.createFolder(folderPath);
+          break;
+        case 'dropbox':
+          await this.dropboxService.createFolder(folderPath);
+          break;
+        default:
+          throw new BadRequestException('Unsupported provider');
+      }
+    } catch (error) {
+      if (error.message?.includes('already exists')) {
+        this.logger.log(`Folder '${folderPath}' already exists in ${provider}`);
+        return;
+      }
+      this.logger.error(`Create folder failed: ${error.message}`);
       throw error;
     }
   }

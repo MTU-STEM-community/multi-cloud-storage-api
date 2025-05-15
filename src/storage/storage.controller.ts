@@ -9,6 +9,7 @@ import {
   Res,
   HttpStatus,
   Query,
+  Body,
 } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { StorageService } from './storage.service';
@@ -37,6 +38,11 @@ export class StorageController {
     enum: ['google', 'dropbox'],
     description: 'Cloud provider name',
   })
+  @ApiQuery({
+    name: 'folderPath',
+    required: false,
+    description: 'Optional folder path for file organization',
+  })
   @ApiBody({
     schema: {
       type: 'object',
@@ -61,6 +67,11 @@ export class StorageController {
           type: 'string',
           description: 'Name used in cloud storage',
         },
+        fileId: { type: 'string', description: 'Unique file identifier' },
+        folderPath: {
+          type: 'string',
+          description: 'Folder path where file was stored (if specified)',
+        },
       },
     },
   })
@@ -68,16 +79,19 @@ export class StorageController {
   async uploadFile(
     @UploadedFile(FileValidationPipe) file: Express.Multer.File,
     @Param('provider') provider: string,
+    @Query('folderPath') folderPath?: string,
   ) {
     const result = await this.storageService.uploadFileToProvider(
       file,
       provider,
+      folderPath,
     );
     return {
       url: result.url,
       originalName: result.originalName,
       storageName: result.storageName,
       fileId: result.fileId,
+      folderPath: result.folderPath,
     };
   }
 
@@ -88,8 +102,35 @@ export class StorageController {
     enum: ['google', 'dropbox'],
     description: 'Cloud provider name',
   })
-  async listFiles(@Param('provider') provider: string) {
-    return this.storageService.listFilesFromProvider(provider);
+  @ApiQuery({
+    name: 'folderPath',
+    required: false,
+    description: 'Optional folder path to list files from',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'List of files retrieved successfully',
+    schema: {
+      type: 'array',
+      items: {
+        type: 'object',
+        properties: {
+          name: { type: 'string' },
+          size: { type: 'string' },
+          contentType: { type: 'string' },
+          created: { type: 'string' },
+          updated: { type: 'string' },
+          path: { type: 'string' },
+          isFolder: { type: 'boolean' },
+        },
+      },
+    },
+  })
+  async listFiles(
+    @Param('provider') provider: string,
+    @Query('folderPath') folderPath?: string,
+  ) {
+    return this.storageService.listFilesFromProvider(provider, folderPath);
   }
 
   @Get('download/:provider/:fileId')
@@ -108,15 +149,22 @@ export class StorageController {
     required: false,
     description: 'Original file name for the download',
   })
+  @ApiQuery({
+    name: 'folderPath',
+    required: false,
+    description: 'Optional folder path where the file is stored',
+  })
   async downloadFile(
     @Param('provider') provider: string,
     @Param('fileId') fileId: string,
-    @Query('originalName') originalName: string,
     @Res() response: Response,
+    @Query('originalName') originalName?: string,
+    @Query('folderPath') folderPath?: string,
   ) {
     const fileData = await this.storageService.downloadFileFromProvider(
       provider,
       fileId,
+      folderPath,
     );
 
     let contentType = 'application/octet-stream';
@@ -160,11 +208,62 @@ export class StorageController {
     description: 'Cloud provider name',
   })
   @ApiParam({ name: 'fileId', description: 'ID or name of the file to delete' })
+  @ApiQuery({
+    name: 'folderPath',
+    required: false,
+    description: 'Optional folder path where the file is stored',
+  })
   async deleteFile(
     @Param('provider') provider: string,
     @Param('fileId') fileId: string,
+    @Query('folderPath') folderPath?: string,
   ) {
-    await this.storageService.deleteFileFromProvider(provider, fileId);
+    await this.storageService.deleteFileFromProvider(
+      provider,
+      fileId,
+      folderPath,
+    );
     return { message: `File ${fileId} successfully deleted from ${provider}` };
+  }
+
+  @Post('folder/:provider')
+  @ApiOperation({ summary: 'Create a new folder in a cloud provider' })
+  @ApiParam({
+    name: 'provider',
+    enum: ['google', 'dropbox'],
+    description: 'Cloud provider name',
+  })
+  @ApiBody({
+    schema: {
+      type: 'object',
+      required: ['folderPath'],
+      properties: {
+        folderPath: {
+          type: 'string',
+          description: 'Path of the folder to create',
+        },
+      },
+    },
+  })
+  @ApiResponse({
+    status: 201,
+    description: 'Folder created successfully',
+    schema: {
+      type: 'object',
+      properties: {
+        message: { type: 'string' },
+        folderPath: { type: 'string' },
+      },
+    },
+  })
+  async createFolder(
+    @Param('provider') provider: string,
+    @Body('folderPath') folderPath: string,
+  ) {
+    await this.storageService.createFolderInProvider(provider, folderPath);
+    return {
+      message: `Folder successfully created in ${provider}`,
+      folderPath,
+    };
   }
 }
