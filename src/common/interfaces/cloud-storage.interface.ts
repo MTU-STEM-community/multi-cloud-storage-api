@@ -2,16 +2,19 @@ export interface CloudStorageProvider {
   uploadFile(
     file: Express.Multer.File,
     fileName: string,
+    folderPath?: string,
   ): Promise<{
     url: string;
     storageName: string;
   }>;
 
-  listFiles(): Promise<any[]>;
+  listFiles(folderPath?: string): Promise<FileListItem[]>;
 
-  downloadFile(fileId: string): Promise<Buffer>;
+  downloadFile(fileId: string, folderPath?: string): Promise<Buffer>;
 
-  deleteFile(fileId: string): Promise<void>;
+  deleteFile(fileId: string, folderPath?: string): Promise<void>;
+
+  createFolder?(folderPath: string): Promise<void>;
 }
 
 export interface FileUploadResult {
@@ -19,6 +22,7 @@ export interface FileUploadResult {
   originalName: string;
   storageName: string;
   fileId: string;
+  folderPath?: string;
 }
 
 export interface FileListItem {
@@ -30,4 +34,5 @@ export interface FileListItem {
   modified?: string;
   originalName?: string;
   path?: string;
+  isFolder?: boolean;
 }
