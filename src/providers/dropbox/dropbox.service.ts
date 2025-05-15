@@ -21,6 +21,7 @@ export class DropboxService implements CloudStorageProvider {
   async uploadFile(
     file: Express.Multer.File,
     fileName: string,
+    folderPath?: string,
   ): Promise<{ url: string; storageName: string }> {
     const accessToken = this.configService.get<string>('DROPBOX_ACCESS_TOKEN');
 
@@ -37,8 +38,12 @@ export class DropboxService implements CloudStorageProvider {
         throw new BadRequestException('Invalid file buffer');
       }
 
+      const fullPath = folderPath
+        ? `/${folderPath}/${fileName}`
+        : `/${fileName}`;
+
       const response = await dropbox.filesUpload({
-        path: `/${fileName}`,
+        path: fullPath,
         contents: file.buffer,
         mode: { '.tag': 'add' },
         autorename: true,
@@ -61,7 +66,7 @@ export class DropboxService implements CloudStorageProvider {
     }
   }
 
-  async listFiles(): Promise<FileListItem[]> {
+  async listFiles(folderPath?: string): Promise<FileListItem[]> {
     const accessToken = this.configService.get<string>('DROPBOX_ACCESS_TOKEN');
     if (!accessToken) {
       throw new BadRequestException(
@@ -70,7 +75,8 @@ export class DropboxService implements CloudStorageProvider {
     }
 
     const dropbox = new Dropbox({ accessToken });
-    const response = await dropbox.filesListFolder({ path: '' });
+    const path = folderPath ? `/${folderPath}` : '';
+    const response = await dropbox.filesListFolder({ path });
 
     return response.result.entries.map((entry) => ({
       name: entry.name,
@@ -78,10 +84,11 @@ export class DropboxService implements CloudStorageProvider {
       size: (entry as any).size || 'Unknown',
       contentType: (entry as any).content_type || 'Unknown',
       modified: (entry as any).server_modified || 'Unknown',
+      isFolder: entry['.tag'] === 'folder',
     }));
   }
 
-  async downloadFile(fileId: string): Promise<Buffer> {
+  async downloadFile(fileId: string, folderPath?: string): Promise<Buffer> {
     const accessToken = this.configService.get<string>('DROPBOX_ACCESS_TOKEN');
     if (!accessToken) {
       throw new BadRequestException(
@@ -91,7 +98,8 @@ export class DropboxService implements CloudStorageProvider {
 
     try {
       const dropbox = new Dropbox({ accessToken });
-      const response = await dropbox.filesDownload({ path: `/${fileId}` });
+      const path = folderPath ? `/${folderPath}/${fileId}` : `/${fileId}`;
+      const response = await dropbox.filesDownload({ path });
 
       const fileContents =
         (response.result as any).fileBinary ||
@@ -111,7 +119,7 @@ export class DropboxService implements CloudStorageProvider {
     }
   }
 
-  async deleteFile(fileId: string): Promise<void> {
+  async deleteFile(fileId: string, folderPath?: string): Promise<void> {
     const accessToken = this.configService.get<string>('DROPBOX_ACCESS_TOKEN');
     if (!accessToken) {
       throw new BadRequestException(
@@ -121,10 +129,33 @@ export class DropboxService implements CloudStorageProvider {
 
     try {
       const dropbox = new Dropbox({ accessToken });
-      await dropbox.filesDeleteV2({ path: `/${fileId}` });
+      const path = folderPath ? `/${folderPath}/${fileId}` : `/${fileId}`;
+      await dropbox.filesDeleteV2({ path });
     } catch (error) {
       throw new BadRequestException(
         `Failed to delete file from Dropbox: ${error.message}`,
+      );
+    }
+  }
+
+  async createFolder(folderPath: string): Promise<void> {
+    const accessToken = this.configService.get<string>('DROPBOX_ACCESS_TOKEN');
+    if (!accessToken) {
+      throw new BadRequestException(
+        'DROPBOX_ACCESS_TOKEN is missing in environment variables.',
+      );
+    }
+
+    try {
+      const dropbox = new Dropbox({ accessToken });
+      await dropbox.filesCreateFolderV2({ path: `/${folderPath}` });
+    } catch (error) {
+      if (error.status === 409) {
+        this.logger.log(`Folder '${folderPath}' already exists in Dropbox`);
+        return;
+      }
+      throw new BadRequestException(
+        `Failed to create folder in Dropbox: ${error.message}`,
       );
     }
   }
@@ -133,6 +164,7 @@ export class DropboxService implements CloudStorageProvider {
     file: Express.Multer.File,
     url: string,
     storageName: string,
+    folderPath?: string,
   ): Promise<string> {
     const encryptionSecret = this.configService.get('ENCRYPTION_SECRET');
     if (!encryptionSecret) {
@@ -160,6 +192,7 @@ export class DropboxService implements CloudStorageProvider {
         type: file.mimetype,
         url: url,
         storageName: storageName,
+        path: folderPath,
         cloudStorages: {
           create: {
             provider: 'dropbox',
