@@ -1,3 +1,5 @@
+// src/storage/controller/storage.controller.ts
+
 import {
   Controller,
   Post,
@@ -15,15 +17,14 @@ import { FileInterceptor } from '@nestjs/platform-express';
 import { StorageService } from './storage.service';
 import { FileValidationPipe } from '../common/pipes/file-validation.pipe';
 import { Response } from 'express';
+import { ApiTags } from '@nestjs/swagger';
 import {
-  ApiTags,
-  ApiOperation,
-  ApiConsumes,
-  ApiBody,
-  ApiParam,
-  ApiQuery,
-  ApiResponse,
-} from '@nestjs/swagger';
+  UploadFileDoc,
+  ListFilesDoc,
+  DownloadFileDoc,
+  DeleteFileDoc,
+  CreateFolderDoc,
+} from './documentation';
 
 @ApiTags('storage')
 @Controller('storage')
@@ -31,50 +32,12 @@ export class StorageController {
   constructor(private readonly storageService: StorageService) {}
 
   @Post('upload/:provider')
-  @ApiOperation({ summary: 'Upload file to a cloud provider' })
-  @ApiConsumes('multipart/form-data')
-  @ApiParam({
-    name: 'provider',
-    enum: ['google', 'dropbox', 'mega'],
-    description: 'Cloud provider name',
-  })
-  @ApiQuery({
-    name: 'folderPath',
-    required: false,
-    description: 'Optional folder path for file organization',
-  })
-  @ApiBody({
-    schema: {
-      type: 'object',
-      properties: {
-        file: {
-          type: 'string',
-          format: 'binary',
-          description: 'File to upload (max 10MB)',
-        },
-      },
-    },
-  })
-  @ApiResponse({
-    status: 201,
-    description: 'File uploaded successfully',
-    schema: {
-      type: 'object',
-      properties: {
-        url: { type: 'string', description: 'URL to access the uploaded file' },
-        originalName: { type: 'string', description: 'Original file name' },
-        storageName: {
-          type: 'string',
-          description: 'Name used in cloud storage',
-        },
-        fileId: { type: 'string', description: 'Unique file identifier' },
-        folderPath: {
-          type: 'string',
-          description: 'Folder path where file was stored (if specified)',
-        },
-      },
-    },
-  })
+  @UploadFileDoc.ApiOperation
+  @UploadFileDoc.ApiConsumes
+  @UploadFileDoc.ApiParam
+  @UploadFileDoc.ApiQuery
+  @UploadFileDoc.ApiBody
+  @UploadFileDoc.ApiResponse
   @UseInterceptors(FileInterceptor('file'))
   async uploadFile(
     @UploadedFile(FileValidationPipe) file: Express.Multer.File,
@@ -96,36 +59,10 @@ export class StorageController {
   }
 
   @Get('list/:provider')
-  @ApiOperation({ summary: 'List files from a cloud provider' })
-  @ApiParam({
-    name: 'provider',
-    enum: ['google', 'dropbox', 'mega'],
-    description: 'Cloud provider name',
-  })
-  @ApiQuery({
-    name: 'folderPath',
-    required: false,
-    description: 'Optional folder path to list files from',
-  })
-  @ApiResponse({
-    status: 200,
-    description: 'List of files retrieved successfully',
-    schema: {
-      type: 'array',
-      items: {
-        type: 'object',
-        properties: {
-          name: { type: 'string' },
-          size: { type: 'string' },
-          contentType: { type: 'string' },
-          created: { type: 'string' },
-          updated: { type: 'string' },
-          path: { type: 'string' },
-          isFolder: { type: 'boolean' },
-        },
-      },
-    },
-  })
+  @ListFilesDoc.ApiOperation
+  @ListFilesDoc.ApiParam
+  @ListFilesDoc.ApiQuery
+  @ListFilesDoc.ApiResponse
   async listFiles(
     @Param('provider') provider: string,
     @Query('folderPath') folderPath?: string,
@@ -134,26 +71,11 @@ export class StorageController {
   }
 
   @Get('download/:provider/:fileId')
-  @ApiOperation({ summary: 'Download a file from a cloud provider' })
-  @ApiParam({
-    name: 'provider',
-    enum: ['google', 'dropbox', 'mega'],
-    description: 'Cloud provider name',
-  })
-  @ApiParam({
-    name: 'fileId',
-    description: 'ID or name of the file to download',
-  })
-  @ApiQuery({
-    name: 'originalName',
-    required: false,
-    description: 'Original file name for the download',
-  })
-  @ApiQuery({
-    name: 'folderPath',
-    required: false,
-    description: 'Optional folder path where the file is stored',
-  })
+  @DownloadFileDoc.ApiOperation
+  @DownloadFileDoc.ApiParam
+  @DownloadFileDoc.ApiParam2
+  @DownloadFileDoc.ApiQuery
+  @DownloadFileDoc.ApiQuery2
   async downloadFile(
     @Param('provider') provider: string,
     @Param('fileId') fileId: string,
@@ -201,18 +123,10 @@ export class StorageController {
   }
 
   @Delete('delete/:provider/:fileId')
-  @ApiOperation({ summary: 'Delete a file from a cloud provider' })
-  @ApiParam({
-    name: 'provider',
-    enum: ['google', 'dropbox', 'mega'],
-    description: 'Cloud provider name',
-  })
-  @ApiParam({ name: 'fileId', description: 'ID or name of the file to delete' })
-  @ApiQuery({
-    name: 'folderPath',
-    required: false,
-    description: 'Optional folder path where the file is stored',
-  })
+  @DeleteFileDoc.ApiOperation
+  @DeleteFileDoc.ApiParam
+  @DeleteFileDoc.ApiParam2
+  @DeleteFileDoc.ApiQuery
   async deleteFile(
     @Param('provider') provider: string,
     @Param('fileId') fileId: string,
@@ -227,35 +141,10 @@ export class StorageController {
   }
 
   @Post('folder/:provider')
-  @ApiOperation({ summary: 'Create a new folder in a cloud provider' })
-  @ApiParam({
-    name: 'provider',
-    enum: ['google', 'dropbox', 'mega'],
-    description: 'Cloud provider name',
-  })
-  @ApiBody({
-    schema: {
-      type: 'object',
-      required: ['folderPath'],
-      properties: {
-        folderPath: {
-          type: 'string',
-          description: 'Path of the folder to create',
-        },
-      },
-    },
-  })
-  @ApiResponse({
-    status: 201,
-    description: 'Folder created successfully',
-    schema: {
-      type: 'object',
-      properties: {
-        message: { type: 'string' },
-        folderPath: { type: 'string' },
-      },
-    },
-  })
+  @CreateFolderDoc.ApiOperation
+  @CreateFolderDoc.ApiParam
+  @CreateFolderDoc.ApiBody
+  @CreateFolderDoc.ApiResponse
   async createFolder(
     @Param('provider') provider: string,
     @Body('folderPath') folderPath: string,
