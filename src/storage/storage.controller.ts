@@ -89,26 +89,7 @@ export class StorageController {
       folderPath,
     );
 
-    let contentType = 'application/octet-stream';
-
-    if (fileId.includes('.')) {
-      const extension = fileId.split('.').pop().toLowerCase();
-      switch (extension) {
-        case 'txt':
-          contentType = 'text/plain';
-          break;
-        case 'pdf':
-          contentType = 'application/pdf';
-          break;
-        case 'jpg':
-        case 'jpeg':
-          contentType = 'image/jpeg';
-          break;
-        case 'png':
-          contentType = 'image/png';
-          break;
-      }
-    }
+    let contentType = FileValidationPipe.getMimeType(fileId)
 
     const downloadName = originalName || fileId;
 

@@ -7,6 +7,7 @@ import {
   FileListItem,
 } from '../../common/interfaces/cloud-storage.interface';
 import * as megajs from 'megajs';
+import { FileValidationPipe } from '../../common/pipes/file-validation.pipe';
 
 @Injectable()
 export class MegaService implements CloudStorageProvider {
@@ -163,7 +164,9 @@ export class MegaService implements CloudStorageProvider {
       return targetFolder.children.map((item: any) => ({
         name: item.name,
         size: item.directory ? '-' : item.size,
-        contentType: item.directory ? 'folder' : this.getMimeType(item.name),
+        contentType: item.directory
+          ? 'folder'
+          : FileValidationPipe.getMimeType(item.name),
         created: new Date(item.timestamp * 1000).toISOString(),
         path: folderPath ? `${folderPath}/${item.name}` : item.name,
         isFolder: item.directory,
@@ -359,29 +362,5 @@ export class MegaService implements CloudStorageProvider {
     });
 
     return savedFile.id;
-  }
-
-  private getMimeType(filename: string): string {
-    const extension = filename.split('.').pop()?.toLowerCase();
-
-    const mimeTypes: { [key: string]: string } = {
-      pdf: 'application/pdf',
-      doc: 'application/msword',
-      docx: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
-      xls: 'application/vnd.ms-excel',
-      xlsx: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-      jpg: 'image/jpeg',
-      jpeg: 'image/jpeg',
-      png: 'image/png',
-      gif: 'image/gif',
-      txt: 'text/plain',
-      zip: 'application/zip',
-      mp3: 'audio/mpeg',
-      mp4: 'video/mp4',
-    };
-
-    return extension && mimeTypes[extension]
-      ? mimeTypes[extension]
-      : 'application/octet-stream';
   }
 }
