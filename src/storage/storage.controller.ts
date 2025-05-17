@@ -35,7 +35,7 @@ export class StorageController {
   @ApiConsumes('multipart/form-data')
   @ApiParam({
     name: 'provider',
-    enum: ['google', 'dropbox'],
+    enum: ['google', 'dropbox', 'mega'],
     description: 'Cloud provider name',
   })
   @ApiQuery({
@@ -99,7 +99,7 @@ export class StorageController {
   @ApiOperation({ summary: 'List files from a cloud provider' })
   @ApiParam({
     name: 'provider',
-    enum: ['google', 'dropbox'],
+    enum: ['google', 'dropbox', 'mega'],
     description: 'Cloud provider name',
   })
   @ApiQuery({
@@ -137,7 +137,7 @@ export class StorageController {
   @ApiOperation({ summary: 'Download a file from a cloud provider' })
   @ApiParam({
     name: 'provider',
-    enum: ['google', 'dropbox'],
+    enum: ['google', 'dropbox', 'mega'],
     description: 'Cloud provider name',
   })
   @ApiParam({
@@ -204,7 +204,7 @@ export class StorageController {
   @ApiOperation({ summary: 'Delete a file from a cloud provider' })
   @ApiParam({
     name: 'provider',
-    enum: ['google', 'dropbox'],
+    enum: ['google', 'dropbox', 'mega'],
     description: 'Cloud provider name',
   })
   @ApiParam({ name: 'fileId', description: 'ID or name of the file to delete' })
@@ -230,7 +230,7 @@ export class StorageController {
   @ApiOperation({ summary: 'Create a new folder in a cloud provider' })
   @ApiParam({
     name: 'provider',
-    enum: ['google', 'dropbox'],
+    enum: ['google', 'dropbox', 'mega'],
     description: 'Cloud provider name',
   })
   @ApiBody({
