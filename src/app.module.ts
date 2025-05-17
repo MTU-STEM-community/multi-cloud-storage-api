@@ -7,6 +7,7 @@ import { ConfigModule } from '@nestjs/config';
 import { DropboxModule } from './providers/dropbox/dropbox.module';
 import { GoogleCloudModule } from './providers/google-cloud/google-cloud.module';
 import { HealthCheckModule } from './health-check/health-check.module';
+import { MegaModule } from './providers/mega/mega.module';
 
 @Module({
   imports: [
@@ -15,6 +16,7 @@ import { HealthCheckModule } from './health-check/health-check.module';
     PrismaModule,
     DropboxModule,
     GoogleCloudModule,
+    MegaModule,
     HealthCheckModule,
   ],
   controllers: [AppController],
