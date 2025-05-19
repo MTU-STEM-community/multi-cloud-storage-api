@@ -8,6 +8,7 @@ import { DropboxModule } from './providers/dropbox/dropbox.module';
 import { GoogleCloudModule } from './providers/google-cloud/google-cloud.module';
 import { HealthCheckModule } from './health-check/health-check.module';
 import { MegaModule } from './providers/mega/mega.module';
+import { GoogleDriveModule } from './providers/google-drive/google-drive.module';
 
 @Module({
   imports: [
@@ -17,6 +18,7 @@ import { MegaModule } from './providers/mega/mega.module';
     DropboxModule,
     GoogleCloudModule,
     MegaModule,
+    GoogleDriveModule,
     HealthCheckModule,
   ],
   controllers: [AppController],
