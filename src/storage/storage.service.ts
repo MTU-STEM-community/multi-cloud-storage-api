@@ -2,6 +2,7 @@ import { Injectable, Logger, BadRequestException } from '@nestjs/common';
 import { GoogleCloudService } from '../providers/google-cloud/google-cloud.service';
 import { DropboxService } from '../providers/dropbox/dropbox.service';
 import { MegaService } from '../providers/mega/mega.service';
+import { GoogleDriveService } from '../providers/google-drive/google-drive.service';
 import {
   FileUploadResult,
   FileListItem,
@@ -15,6 +16,7 @@ export class StorageService {
     private readonly googleCloudService: GoogleCloudService,
     private readonly dropboxService: DropboxService,
     private readonly megaService: MegaService,
+    private readonly googleDriveService: GoogleDriveService,
   ) {}
 
   async uploadFileToProvider(
@@ -78,6 +80,20 @@ export class StorageService {
             folderPath,
           );
           break;
+        case 'google-drive':
+          const googleDriveResult = await this.googleDriveService.uploadFile(
+            file,
+            storageName,
+            folderPath,
+          );
+          url = googleDriveResult.url;
+          fileId = await this.googleDriveService.saveFileRecord(
+            file,
+            url,
+            storageName,
+            folderPath,
+          );
+          break;
         default:
           throw new BadRequestException('Unsupported provider');
       }
@@ -107,6 +123,8 @@ export class StorageService {
           return this.dropboxService.listFiles(folderPath);
         case 'mega':
           return this.megaService.listFiles(folderPath);
+        case 'google-drive':
+          return this.googleDriveService.listFiles(folderPath);
         default:
           throw new BadRequestException('Unsupported provider');
       }
@@ -129,6 +147,8 @@ export class StorageService {
           return await this.dropboxService.downloadFile(fileId, folderPath);
         case 'mega':
           return await this.megaService.downloadFile(fileId, folderPath);
+        case 'google-drive':
+          return await this.googleDriveService.downloadFile(fileId, folderPath);
         default:
           throw new BadRequestException('Unsupported provider');
       }
@@ -151,6 +171,8 @@ export class StorageService {
           return await this.dropboxService.deleteFile(fileId, folderPath);
         case 'mega':
           return await this.megaService.deleteFile(fileId, folderPath);
+        case 'google-drive':
+          return await this.googleDriveService.deleteFile(fileId, folderPath);
         default:
           throw new BadRequestException('Unsupported provider');
       }
@@ -178,6 +200,9 @@ export class StorageService {
           break;
         case 'mega':
           await this.megaService.createFolder(folderPath);
+          break;
+        case 'google-drive':
+          await this.googleDriveService.createFolder(folderPath);
           break;
         default:
           throw new BadRequestException('Unsupported provider');
