@@ -4,6 +4,7 @@ export enum StorageProvider {
   GOOGLE = 'google',
   DROPBOX = 'dropbox',
   MEGA = 'mega',
+  GOOGLE_DRIVE = 'google-drive',
 }
 
 export class ProviderParam {
