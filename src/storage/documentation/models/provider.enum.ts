@@ -1,7 +1,7 @@
 import { ApiProperty } from '@nestjs/swagger';
 
 export enum StorageProvider {
-  GOOGLE = 'google',
+  GOOGLE = 'google-cloud',
   DROPBOX = 'dropbox',
   MEGA = 'mega',
   GOOGLE_DRIVE = 'google-drive',

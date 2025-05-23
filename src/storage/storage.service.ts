@@ -38,7 +38,7 @@ export class StorageService {
       }
 
       switch (provider) {
-        case 'google':
+        case 'google-cloud':
           const googleResult = await this.googleCloudService.uploadFile(
             file,
             storageName,
@@ -117,7 +117,7 @@ export class StorageService {
   ): Promise<FileListItem[]> {
     try {
       switch (provider) {
-        case 'google':
+        case 'google-cloud':
           return this.googleCloudService.listFiles(folderPath);
         case 'dropbox':
           return this.dropboxService.listFiles(folderPath);
@@ -141,7 +141,7 @@ export class StorageService {
   ): Promise<Buffer> {
     try {
       switch (provider) {
-        case 'google':
+        case 'google-cloud':
           return await this.googleCloudService.downloadFile(fileId, folderPath);
         case 'dropbox':
           return await this.dropboxService.downloadFile(fileId, folderPath);
@@ -165,7 +165,7 @@ export class StorageService {
   ): Promise<void> {
     try {
       switch (provider) {
-        case 'google':
+        case 'google-cloud':
           return await this.googleCloudService.deleteFile(fileId, folderPath);
         case 'dropbox':
           return await this.dropboxService.deleteFile(fileId, folderPath);
@@ -192,7 +192,7 @@ export class StorageService {
 
     try {
       switch (provider) {
-        case 'google':
+        case 'google-cloud':
           await this.googleCloudService.createFolder(folderPath);
           break;
         case 'dropbox':
