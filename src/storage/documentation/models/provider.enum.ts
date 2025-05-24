@@ -5,6 +5,7 @@ export enum StorageProvider {
   DROPBOX = 'dropbox',
   MEGA = 'mega',
   GOOGLE_DRIVE = 'google-drive',
+  BACKBLAZE = 'backblaze',
 }
 
 export class ProviderParam {

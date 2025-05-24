@@ -9,6 +9,7 @@ import { GoogleCloudModule } from './providers/google-cloud/google-cloud.module'
 import { HealthCheckModule } from './health-check/health-check.module';
 import { MegaModule } from './providers/mega/mega.module';
 import { GoogleDriveModule } from './providers/google-drive/google-drive.module';
+import { BackblazeModule } from './providers/backblaze/backblaze.module';
 
 @Module({
   imports: [
@@ -19,6 +20,7 @@ import { GoogleDriveModule } from './providers/google-drive/google-drive.module'
     GoogleCloudModule,
     MegaModule,
     GoogleDriveModule,
+    BackblazeModule,
     HealthCheckModule,
   ],
   controllers: [AppController],
