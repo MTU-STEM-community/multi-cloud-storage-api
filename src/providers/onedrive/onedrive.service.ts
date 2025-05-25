@@ -296,4 +296,18 @@ export class OneDriveService implements CloudStorageProvider {
 
     return savedFile.id;
   }
+
+  async deleteFolder(folderPath: string): Promise<void> {
+    try {
+      const headers = await this.getApiHeaders();
+      await axios.delete(`${this.baseUrl}/root:/${folderPath}`, { headers });
+      this.logger.log(
+        `Folder '${folderPath}' deleted successfully from OneDrive`,
+      );
+    } catch (error) {
+      throw new BadRequestException(
+        `Failed to delete folder from OneDrive: ${error.message}`,
+      );
+    }
+  }
 }
