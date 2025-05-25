@@ -266,4 +266,41 @@ export class StorageService {
       throw error;
     }
   }
+
+  async deleteFolderFromProvider(
+    provider: string,
+    folderPath: string,
+  ): Promise<void> {
+    if (!folderPath) {
+      throw new BadRequestException('Folder path is required');
+    }
+
+    try {
+      switch (provider) {
+        case 'google-cloud':
+          await this.googleCloudService.deleteFolder(folderPath);
+          break;
+        case 'dropbox':
+          await this.dropboxService.deleteFolder(folderPath);
+          break;
+        case 'mega':
+          await this.megaService.deleteFolder(folderPath);
+          break;
+        case 'google-drive':
+          await this.googleDriveService.deleteFolder(folderPath);
+          break;
+        case 'backblaze':
+          await this.backblazeService.deleteFolder(folderPath);
+          break;
+        case 'onedrive':
+          await this.oneDriveService.deleteFolder(folderPath);
+          break;
+        default:
+          throw new BadRequestException('Unsupported provider');
+      }
+    } catch (error) {
+      this.logger.error(`Delete folder failed: ${error.message}`);
+      throw error;
+    }
+  }
 }
