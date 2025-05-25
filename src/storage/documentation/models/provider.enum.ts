@@ -6,6 +6,7 @@ export enum StorageProvider {
   MEGA = 'mega',
   GOOGLE_DRIVE = 'google-drive',
   BACKBLAZE = 'backblaze',
+  ONEDRIVE = 'onedrive',
 }
 
 export class ProviderParam {
