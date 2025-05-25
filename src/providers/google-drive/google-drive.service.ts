@@ -326,4 +326,20 @@ export class GoogleDriveService implements CloudStorageProvider {
 
     return savedFile.id;
   }
+
+  async deleteFolder(folderPath: string): Promise<void> {
+    try {
+      const drive = await this.getDriveClient();
+      const folderId = await this.getFolderId(folderPath, drive);
+
+      await drive.files.delete({
+        fileId: folderId,
+      });
+    } catch (error) {
+      this.logger.error(`Google Drive folder deletion error: ${error.message}`);
+      throw new BadRequestException(
+        `Failed to delete folder from Google Drive: ${error.message}`,
+      );
+    }
+  }
 }
