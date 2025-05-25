@@ -1,5 +1,3 @@
-// src/storage/controller/storage.controller.ts
-
 import {
   Controller,
   Post,
@@ -24,6 +22,7 @@ import {
   DownloadFileDoc,
   DeleteFileDoc,
   CreateFolderDoc,
+  DeleteFolderDoc
 } from './documentation';
 
 @ApiTags('storage')
@@ -89,7 +88,7 @@ export class StorageController {
       folderPath,
     );
 
-    let contentType = FileValidationPipe.getMimeType(fileId)
+    let contentType = FileValidationPipe.getMimeType(fileId);
 
     const downloadName = originalName || fileId;
 
@@ -134,6 +133,21 @@ export class StorageController {
     return {
       message: `Folder successfully created in ${provider}`,
       folderPath,
+    };
+  }
+
+  @Delete('folder/:provider')
+  @DeleteFolderDoc.ApiOperation
+  @DeleteFolderDoc.ApiParam
+  @DeleteFolderDoc.ApiBody
+  @DeleteFolderDoc.ApiResponse
+  async deleteFolder(
+    @Param('provider') provider: string,
+    @Query('folderPath') folderPath: string,
+  ) {
+    await this.storageService.deleteFolderFromProvider(provider, folderPath);
+    return {
+      message: `Folder '${folderPath}' successfully deleted from ${provider}`,
     };
   }
 }
