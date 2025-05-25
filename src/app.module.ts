@@ -10,6 +10,7 @@ import { HealthCheckModule } from './health-check/health-check.module';
 import { MegaModule } from './providers/mega/mega.module';
 import { GoogleDriveModule } from './providers/google-drive/google-drive.module';
 import { BackblazeModule } from './providers/backblaze/backblaze.module';
+import { OneDriveModule } from './providers/onedrive/onedrive.module';
 
 @Module({
   imports: [
@@ -21,6 +22,7 @@ import { BackblazeModule } from './providers/backblaze/backblaze.module';
     MegaModule,
     GoogleDriveModule,
     BackblazeModule,
+    OneDriveModule,
     HealthCheckModule,
   ],
   controllers: [AppController],
