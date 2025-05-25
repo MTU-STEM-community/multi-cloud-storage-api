@@ -97,7 +97,7 @@ export class GoogleCloudService implements CloudStorageProvider {
       const prefix = `${folderPath}/`;
       const directoryContents = new Set<string>();
 
-      files.forEach(file => {
+      files.forEach((file) => {
         if (file.name === `${folderPath}/`) return;
 
         const relativePath = file.name.substring(prefix.length);
@@ -122,7 +122,8 @@ export class GoogleCloudService implements CloudStorageProvider {
             contentType: file.metadata.contentType || 'unknown',
             created: file.metadata.timeCreated || '-',
             updated: file.metadata.updated || '-',
-            originalName: file.metadata.metadata?.originalFileName?.toString() || file.name,
+            originalName:
+              file.metadata.metadata?.originalFileName?.toString() || file.name,
             path: file.name,
             isFolder: false,
           });
@@ -133,7 +134,7 @@ export class GoogleCloudService implements CloudStorageProvider {
     } else {
       const rootContents = new Set<string>();
 
-      files.forEach(file => {
+      files.forEach((file) => {
         if (file.name.includes('/')) {
           const topFolder = file.name.split('/')[0];
           if (!rootContents.has(topFolder)) {
@@ -154,7 +155,8 @@ export class GoogleCloudService implements CloudStorageProvider {
             contentType: file.metadata.contentType || 'unknown',
             created: file.metadata.timeCreated || '-',
             updated: file.metadata.updated || '-',
-            originalName: file.metadata.metadata?.originalFileName?.toString() || file.name,
+            originalName:
+              file.metadata.metadata?.originalFileName?.toString() || file.name,
             path: file.name,
             isFolder: false,
           });
@@ -301,5 +303,35 @@ export class GoogleCloudService implements CloudStorageProvider {
     });
 
     return savedFile.id;
+  }
+
+  async deleteFolder(folderPath: string): Promise<void> {
+    const { Storage } = await import('@google-cloud/storage');
+    const projectId = this.configService.get<string>('GOOGLE_CLOUD_PROJECT_ID');
+    const bucketName = this.configService.get<string>(
+      'GOOGLE_CLOUD_BUCKET_NAME',
+    );
+    const keyFilePath = this.configService.get<string>(
+      'GOOGLE_CLOUD_KEYFILE_PATH',
+    );
+
+    if (!projectId || !bucketName || !keyFilePath) {
+      throw new BadRequestException(
+        'Google Cloud configuration is missing in environment variables.',
+      );
+    }
+
+    try {
+      const storage = new Storage({ projectId, keyFilename: keyFilePath });
+      const bucket = storage.bucket(bucketName);
+
+      await bucket.deleteFiles({
+        prefix: `${folderPath}/`,
+      });
+    } catch (error) {
+      throw new BadRequestException(
+        `Failed to delete folder from Google Cloud: ${error.message}`,
+      );
+    }
   }
 }

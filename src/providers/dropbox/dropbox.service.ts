@@ -204,4 +204,22 @@ export class DropboxService implements CloudStorageProvider {
 
     return savedFile.id;
   }
+
+  async deleteFolder(folderPath: string): Promise<void> {
+    const accessToken = this.configService.get<string>('DROPBOX_ACCESS_TOKEN');
+    if (!accessToken) {
+      throw new BadRequestException(
+        'DROPBOX_ACCESS_TOKEN is missing in environment variables.',
+      );
+    }
+
+    try {
+      const dropbox = new Dropbox({ accessToken });
+      await dropbox.filesDeleteV2({ path: `/${folderPath}` });
+    } catch (error) {
+      throw new BadRequestException(
+        `Failed to delete folder from Dropbox: ${error.message}`,
+      );
+    }
+  }
 }

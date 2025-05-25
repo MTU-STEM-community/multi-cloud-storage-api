@@ -500,4 +500,57 @@ export class BackblazeService implements CloudStorageProvider {
 
     return savedFile.id;
   }
+
+  async deleteFolder(folderPath: string): Promise<void> {
+    try {
+      const bucketId = await this.getBucketId();
+      const { authorizationToken, apiUrl } = await this.getAuthToken();
+
+      const response = await fetch(`${apiUrl}/b2api/v2/b2_list_file_names`, {
+        method: 'POST',
+        headers: {
+          Authorization: authorizationToken,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          bucketId,
+          prefix: `${folderPath}/`,
+          maxFileCount: 10000,
+        }),
+      });
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(`HTTP ${response.status}: ${errorText}`);
+      }
+
+      const data = await response.json();
+      for (const file of data.files) {
+        const deleteResponse = await fetch(
+          `${apiUrl}/b2api/v2/b2_delete_file_version`,
+          {
+            method: 'POST',
+            headers: {
+              Authorization: authorizationToken,
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+              fileId: file.fileId,
+              fileName: file.fileName,
+            }),
+          },
+        );
+
+        if (!deleteResponse.ok) {
+          const errorText = await deleteResponse.text();
+          throw new Error(`HTTP ${deleteResponse.status}: ${errorText}`);
+        }
+      }
+    } catch (error) {
+      this.logger.error(`B2 folder deletion error: ${error.message}`);
+      throw new BadRequestException(
+        `Failed to delete folder from B2: ${error.message}`,
+      );
+    }
+  }
 }

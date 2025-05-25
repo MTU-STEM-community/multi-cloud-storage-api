@@ -60,3 +60,16 @@ export class CreateFolderResponseDto {
   @ApiProperty({ description: 'Created folder path' })
   folderPath: string;
 }
+
+export class DeleteFolderDto {
+  @ApiProperty({ description: 'Path of the folder to delete' })
+  folderPath: string;
+}
+
+export class DeleteFolderResponseDto {
+    @ApiProperty({ description: 'Success message' })
+    message: string;
+
+    @ApiProperty({ description: 'Created folder path' })
+    folderPath: string;
+  }

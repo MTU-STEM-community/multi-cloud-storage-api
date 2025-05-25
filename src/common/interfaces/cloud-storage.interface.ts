@@ -15,6 +15,8 @@ export interface CloudStorageProvider {
   deleteFile(fileId: string, folderPath?: string): Promise<void>;
 
   createFolder?(folderPath: string): Promise<void>;
+
+  deleteFolder(folderPath: string): Promise<void>;
 }
 
 export interface FileUploadResult {

@@ -363,4 +363,34 @@ export class MegaService implements CloudStorageProvider {
 
     return savedFile.id;
   }
+
+  async deleteFolder(folderPath: string): Promise<void> {
+    try {
+      const storage = await this.getMegaStorage();
+      let targetFolder: any = storage.root;
+
+      const folders = folderPath.split('/').filter((f) => f);
+      for (const folder of folders) {
+        const found = targetFolder.children.find(
+          (item: any) => item.name === folder && item.directory,
+        );
+        if (!found) {
+          throw new BadRequestException(`Folder '${folderPath}' not found`);
+        }
+        targetFolder = found;
+      }
+
+      await new Promise<void>((resolve, reject) => {
+        targetFolder.delete((err: any) => {
+          if (err) reject(err);
+          else resolve();
+        });
+      });
+    } catch (error) {
+      this.logger.error(`Mega folder deletion error: ${error.message}`);
+      throw new BadRequestException(
+        `Failed to delete folder from Mega: ${error.message}`,
+      );
+    }
+  }
 }
