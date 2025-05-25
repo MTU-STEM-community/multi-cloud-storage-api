@@ -120,7 +120,7 @@ export class StorageController {
     return { message: `File ${fileId} successfully deleted from ${provider}` };
   }
 
-  @Post('folder/:provider')
+  @Post(':provider/folder')
   @CreateFolderDoc.ApiOperation
   @CreateFolderDoc.ApiParam
   @CreateFolderDoc.ApiBody
@@ -136,7 +136,7 @@ export class StorageController {
     };
   }
 
-  @Delete('folder/:provider')
+  @Delete(':provider/folder')
   @DeleteFolderDoc.ApiOperation
   @DeleteFolderDoc.ApiParam
   @DeleteFolderDoc.ApiBody
