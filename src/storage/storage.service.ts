@@ -4,6 +4,7 @@ import { DropboxService } from '../providers/dropbox/dropbox.service';
 import { MegaService } from '../providers/mega/mega.service';
 import { GoogleDriveService } from '../providers/google-drive/google-drive.service';
 import { BackblazeService } from '../providers/backblaze/backblaze.service';
+import { OneDriveService } from '../providers/onedrive/onedrive.service';
 import {
   FileUploadResult,
   FileListItem,
@@ -19,6 +20,7 @@ export class StorageService {
     private readonly megaService: MegaService,
     private readonly googleDriveService: GoogleDriveService,
     private readonly backblazeService: BackblazeService,
+    private readonly oneDriveService: OneDriveService,
   ) {}
 
   async uploadFileToProvider(
@@ -110,6 +112,20 @@ export class StorageService {
             folderPath,
           );
           break;
+        case 'onedrive':
+          const oneDriveResult = await this.oneDriveService.uploadFile(
+            file,
+            storageName,
+            folderPath,
+          );
+          url = oneDriveResult.url;
+          fileId = await this.oneDriveService.saveFileRecord(
+            file,
+            url,
+            storageName,
+            folderPath,
+          );
+          break;
         default:
           throw new BadRequestException('Unsupported provider');
       }
@@ -143,6 +159,8 @@ export class StorageService {
           return this.googleDriveService.listFiles(folderPath);
         case 'backblaze':
           return this.backblazeService.listFiles(folderPath);
+        case 'onedrive':
+          return this.oneDriveService.listFiles(folderPath);
         default:
           throw new BadRequestException('Unsupported provider');
       }
@@ -169,6 +187,8 @@ export class StorageService {
           return await this.googleDriveService.downloadFile(fileId, folderPath);
         case 'backblaze':
           return await this.backblazeService.downloadFile(fileId, folderPath);
+        case 'onedrive':
+          return await this.oneDriveService.downloadFile(fileId, folderPath);
         default:
           throw new BadRequestException('Unsupported provider');
       }
@@ -195,6 +215,8 @@ export class StorageService {
           return await this.googleDriveService.deleteFile(fileId, folderPath);
         case 'backblaze':
           return await this.backblazeService.deleteFile(fileId, folderPath);
+        case 'onedrive':
+          return await this.oneDriveService.deleteFile(fileId, folderPath);
         default:
           throw new BadRequestException('Unsupported provider');
       }
@@ -228,6 +250,9 @@ export class StorageService {
           break;
         case 'backblaze':
           await this.backblazeService.createFolder(folderPath);
+          break;
+        case 'onedrive':
+          await this.oneDriveService.createFolder(folderPath);
           break;
         default:
           throw new BadRequestException('Unsupported provider');
