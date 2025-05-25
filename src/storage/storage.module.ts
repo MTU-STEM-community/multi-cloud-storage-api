@@ -6,6 +6,7 @@ import { DropboxModule } from '../providers/dropbox/dropbox.module';
 import { MegaModule } from 'src/providers/mega/mega.module';
 import { GoogleDriveModule } from '../providers/google-drive/google-drive.module';
 import { BackblazeModule } from 'src/providers/backblaze/backblaze.module';
+import { OneDriveModule } from 'src/providers/onedrive/onedrive.module';
 
 @Module({
   imports: [
@@ -14,6 +15,7 @@ import { BackblazeModule } from 'src/providers/backblaze/backblaze.module';
     MegaModule,
     GoogleDriveModule,
     BackblazeModule,
+    OneDriveModule,
   ],
   controllers: [StorageController],
   providers: [StorageService],
