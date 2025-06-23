@@ -17,6 +17,13 @@ export interface CloudStorageProvider {
   createFolder?(folderPath: string): Promise<void>;
 
   deleteFolder(folderPath: string): Promise<void>;
+
+  saveFileRecord(
+    file: Express.Multer.File,
+    url: string,
+    storageName: string,
+    folderPath?: string,
+  ): Promise<string>;
 }
 
 export interface FileUploadResult {
