@@ -24,6 +24,8 @@ export interface CloudStorageProvider {
     storageName: string,
     folderPath?: string,
   ): Promise<string>;
+
+  generateStorageName(originalName: string): string;
 }
 
 export interface FileUploadResult {

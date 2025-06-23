@@ -132,7 +132,7 @@ export abstract class BaseCloudStorageProvider implements CloudStorageProvider {
     }
   }
 
-  protected generateStorageName(originalName: string): string {
+  public generateStorageName(originalName: string): string {
     return `${Date.now()}_${originalName}`;
   }
 }
