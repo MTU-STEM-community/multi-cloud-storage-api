@@ -13,7 +13,7 @@ async function bootstrap() {
     .addTag('storage')
     .build();
   const document = SwaggerModule.createDocument(app, config);
-  SwaggerModule.setup('api', app, document);
+  SwaggerModule.setup('api/docs', app, document);
 
   app.useGlobalFilters(new CloudStorageFilter());
   await app.listen(3000);
