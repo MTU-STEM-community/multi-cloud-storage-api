@@ -5,7 +5,6 @@ import { HttpException, HttpStatus } from '@nestjs/common';
 
 describe('HealthCheckController', () => {
   let controller: HealthCheckController;
-  let _service: HealthCheckService;
 
   const mockHealthCheckResponse = {
     status: 'ok',
@@ -35,7 +34,6 @@ describe('HealthCheckController', () => {
     }).compile();
 
     controller = module.get<HealthCheckController>(HealthCheckController);
-    _service = module.get<HealthCheckService>(HealthCheckService);
   });
 
   it('should be defined', () => {
