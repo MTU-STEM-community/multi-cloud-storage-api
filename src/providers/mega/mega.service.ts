@@ -1,60 +1,110 @@
-import { Injectable, Logger, BadRequestException } from '@nestjs/common';
+import { Injectable, BadRequestException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { PrismaService } from '../../prisma/prisma.service';
 import { EncryptionService } from '../../utils/encryption.util';
-import {
-  CloudStorageProvider,
-  FileListItem,
-} from '../../common/interfaces/cloud-storage.interface';
+import { FileListItem } from '../../common/interfaces/cloud-storage.interface';
 import * as megajs from 'megajs';
 import { FileValidationPipe } from '../../common/pipes/file-validation.pipe';
+import { BaseCloudStorageProvider } from '../../common/providers/base-cloud-storage.provider';
 
 @Injectable()
-export class MegaService implements CloudStorageProvider {
-  private readonly logger = new Logger(MegaService.name);
-
+export class MegaService extends BaseCloudStorageProvider {
   constructor(
-    private readonly configService: ConfigService,
-    private readonly prisma: PrismaService,
-    private readonly encryptionService: EncryptionService,
-  ) {}
+    configService: ConfigService,
+    prisma: PrismaService,
+    encryptionService: EncryptionService,
+  ) {
+    super(configService, prisma, encryptionService, 'Mega');
+  }
 
-  private async getMegaStorage() {
-    const email = this.configService.get<string>('MEGA_EMAIL');
-    const password = this.configService.get<string>('MEGA_PASSWORD');
+  protected validateConfiguration(): void {
+    this.providerConfigService.getMegaConfig();
+  }
 
-    if (!email || !password) {
-      throw new BadRequestException(
-        'MEGA_EMAIL or MEGA_PASSWORD is missing in environment variables.',
-      );
-    }
+  protected getCredentialsForEncryption(): Record<string, any> {
+    const config = this.providerConfigService.getMegaConfig();
+    return {
+      email: config.email,
+      password: config.password,
+    };
+  }
+
+  private async getMegaStorage(): Promise<megajs.Storage> {
+    const { email, password } = this.getCredentialsForEncryption();
 
     this.logger.log('Attempting to authenticate with Mega...');
 
-    try {
-      return await new Promise<megajs.Storage>((resolve, reject) => {
-        const storage = new megajs.Storage({
-          email: email,
-          password: password,
-          autoload: true,
-        });
-
-        storage.on('ready', () => {
-          this.logger.log('Mega authentication successful');
-          resolve(storage);
-        });
-
-        storage.on('error', (err) => {
-          this.logger.error(`Mega authentication error: ${err.message}`);
-          reject(new Error(`Failed to authenticate with Mega: ${err.message}`));
-        });
+    return new Promise<megajs.Storage>((resolve, reject) => {
+      const storage = new megajs.Storage({
+        email: email,
+        password: password,
+        autoload: true,
       });
-    } catch (error) {
-      this.logger.error(`Mega authentication error: ${error.message}`);
-      throw new BadRequestException(
-        `Failed to authenticate with Mega: ${error.message}`,
-      );
+
+      storage.on('ready', () => {
+        this.logger.log('Mega authentication successful');
+        resolve(storage);
+      });
+
+      storage.on('error', (err) => {
+        this.logger.error(`Mega authentication error: ${err.message}`);
+        reject(new Error(`Failed to authenticate with Mega: ${err.message}`));
+      });
+    });
+  }
+
+  private async navigateToFolder(storage: megajs.Storage, folderPath?: string): Promise<any> {
+    let targetFolder: any = storage.root;
+
+    if (folderPath) {
+      const normalizedPath = this.normalizeFolderPath(folderPath);
+      const folders = normalizedPath.split('/').filter(f => f);
+
+      for (const folder of folders) {
+        let found = false;
+        for (const child of targetFolder.children) {
+          if (child.name === folder && child.directory) {
+            targetFolder = child;
+            found = true;
+            break;
+          }
+        }
+
+        if (!found) {
+          throw new Error(`Folder '${folderPath}' not found`);
+        }
+      }
     }
+
+    return targetFolder;
+  }
+
+  private async createFolderPath(storage: megajs.Storage, folderPath: string): Promise<any> {
+    let targetFolder: any = storage.root;
+    const normalizedPath = this.normalizeFolderPath(folderPath);
+    const folders = normalizedPath.split('/').filter(f => f);
+
+    for (const folder of folders) {
+      let found = false;
+      for (const child of targetFolder.children) {
+        if (child.name === folder && child.directory) {
+          targetFolder = child;
+          found = true;
+          break;
+        }
+      }
+
+      if (!found) {
+        targetFolder = await new Promise((resolve, reject) => {
+          targetFolder.mkdir(folder, (err: any, folder: any) => {
+            if (err) reject(err);
+            else resolve(folder);
+          });
+        });
+      }
+    }
+
+    return targetFolder;
   }
 
   async uploadFile(
@@ -62,36 +112,13 @@ export class MegaService implements CloudStorageProvider {
     fileName: string,
     folderPath?: string,
   ): Promise<{ url: string; storageName: string }> {
-    try {
+    return this.executeWithErrorHandling(async () => {
+      this.validateFileOperation(file);
+
       const storage = await this.getMegaStorage();
-
-      let targetFolder: any = storage.root;
-      if (folderPath) {
-        const folders = folderPath.split('/');
-        for (const folder of folders) {
-          if (!folder) continue;
-
-          let found = false;
-          for (const child of targetFolder.children) {
-            if (child.name === folder && child.directory) {
-              targetFolder = child;
-              found = true;
-              break;
-            }
-          }
-
-          if (!found) {
-            targetFolder = await new Promise((resolve, reject) => {
-              targetFolder.mkdir(folder, (err: any, folder: any) => {
-                if (err) reject(err);
-                else resolve(folder);
-              });
-            });
-          }
-        }
-      }
-
-      this.logger.log(`Uploading file '${fileName}' to Mega...`);
+      const targetFolder = folderPath
+        ? await this.createFolderPath(storage, folderPath)
+        : storage.root;
 
       const uploadResult: any = await new Promise((resolve, reject) => {
         targetFolder.upload(
@@ -128,38 +155,13 @@ export class MegaService implements CloudStorageProvider {
         url: shareLink,
         storageName: fileName,
       };
-    } catch (error) {
-      this.logger.error(`Mega upload error: ${error.message}`);
-      throw new BadRequestException(
-        `Failed to upload file to Mega: ${error.message}`,
-      );
-    }
+    }, 'Upload file');
   }
 
   async listFiles(folderPath?: string): Promise<FileListItem[]> {
-    try {
+    return this.executeWithErrorHandling(async () => {
       const storage = await this.getMegaStorage();
-      let targetFolder: any = storage.root;
-
-      if (folderPath) {
-        const folders = folderPath.split('/');
-        for (const folder of folders) {
-          if (!folder) continue;
-
-          let found = false;
-          for (const child of targetFolder.children) {
-            if (child.name === folder && child.directory) {
-              targetFolder = child;
-              found = true;
-              break;
-            }
-          }
-
-          if (!found) {
-            throw new BadRequestException(`Folder '${folderPath}' not found`);
-          }
-        }
-      }
+      const targetFolder = await this.navigateToFolder(storage, folderPath);
 
       return targetFolder.children.map((item: any) => ({
         name: item.name,
@@ -171,38 +173,13 @@ export class MegaService implements CloudStorageProvider {
         path: folderPath ? `${folderPath}/${item.name}` : item.name,
         isFolder: item.directory,
       }));
-    } catch (error) {
-      this.logger.error(`Mega list files error: ${error.message}`);
-      throw new BadRequestException(
-        `Failed to list files from Mega: ${error.message}`,
-      );
-    }
+    }, 'List files');
   }
 
   async downloadFile(fileId: string, folderPath?: string): Promise<Buffer> {
-    try {
+    return this.executeWithErrorHandling(async () => {
       const storage = await this.getMegaStorage();
-      let targetFolder: any = storage.root;
-
-      if (folderPath) {
-        const folders = folderPath.split('/');
-        for (const folder of folders) {
-          if (!folder) continue;
-
-          let found = false;
-          for (const child of targetFolder.children) {
-            if (child.name === folder && child.directory) {
-              targetFolder = child;
-              found = true;
-              break;
-            }
-          }
-
-          if (!found) {
-            throw new BadRequestException(`Folder '${folderPath}' not found`);
-          }
-        }
-      }
+      const targetFolder = await this.navigateToFolder(storage, folderPath);
 
       const targetFile = targetFolder.children.find(
         (item: any) => item.name === fileId,
@@ -211,46 +188,19 @@ export class MegaService implements CloudStorageProvider {
         throw new BadRequestException(`File '${fileId}' not found`);
       }
 
-      const fileData: Buffer = await new Promise((resolve, reject) => {
+      return new Promise((resolve, reject) => {
         targetFile.download((err: any, data: Buffer) => {
           if (err) reject(err);
           else resolve(data);
         });
       });
-
-      return fileData;
-    } catch (error) {
-      this.logger.error(`Mega download error: ${error.message}`);
-      throw new BadRequestException(
-        `Failed to download file from Mega: ${error.message}`,
-      );
-    }
+    }, 'Download file');
   }
 
   async deleteFile(fileId: string, folderPath?: string): Promise<void> {
-    try {
+    this.executeWithErrorHandling(async () => {
       const storage = await this.getMegaStorage();
-      let targetFolder: any = storage.root;
-
-      if (folderPath) {
-        const folders = folderPath.split('/');
-        for (const folder of folders) {
-          if (!folder) continue;
-
-          let found = false;
-          for (const child of targetFolder.children) {
-            if (child.name === folder && child.directory) {
-              targetFolder = child;
-              found = true;
-              break;
-            }
-          }
-
-          if (!found) {
-            throw new BadRequestException(`Folder '${folderPath}' not found`);
-          }
-        }
-      }
+      const targetFolder = await this.navigateToFolder(storage, folderPath);
 
       const targetFile = targetFolder.children.find(
         (item: any) => item.name === fileId,
@@ -265,120 +215,24 @@ export class MegaService implements CloudStorageProvider {
           else resolve();
         });
       });
-    } catch (error) {
-      this.logger.error(`Mega delete error: ${error.message}`);
-      throw new BadRequestException(
-        `Failed to delete file from Mega: ${error.message}`,
-      );
-    }
+    }, 'Delete file');
   }
 
   async createFolder(folderPath: string): Promise<void> {
-    try {
-      if (!folderPath) {
-        throw new BadRequestException('Folder path is required');
-      }
+    this.validateFolderPath(folderPath);
 
+    return this.executeWithErrorHandling(async () => {
       const storage = await this.getMegaStorage();
-      let targetFolder: any = storage.root;
-      const folders = folderPath.split('/');
-
-      for (const folder of folders) {
-        if (!folder) continue;
-
-        let found = false;
-        for (const child of targetFolder.children) {
-          if (child.name === folder && child.directory) {
-            targetFolder = child;
-            found = true;
-            break;
-          }
-        }
-
-        if (!found) {
-          targetFolder = await new Promise((resolve, reject) => {
-            targetFolder.mkdir(folder, (err: any, folder: any) => {
-              if (err) reject(err);
-              else resolve(folder);
-            });
-          });
-        }
-      }
-
-      this.logger.log(`Folder '${folderPath}' created in Mega`);
-    } catch (error) {
-      if (error.message?.includes('already exists')) {
-        this.logger.log(`Folder '${folderPath}' already exists in Mega`);
-        return;
-      }
-      this.logger.error(`Mega create folder error: ${error.message}`);
-      throw new BadRequestException(
-        `Failed to create folder in Mega: ${error.message}`,
-      );
-    }
-  }
-
-  async saveFileRecord(
-    file: Express.Multer.File,
-    url: string,
-    storageName: string,
-    folderPath?: string,
-  ): Promise<string> {
-    const encryptionSecret = this.configService.get('ENCRYPTION_SECRET');
-    if (!encryptionSecret) {
-      throw new BadRequestException(
-        'ENCRYPTION_SECRET is not set in environment variables',
-      );
-    }
-
-    const email = this.configService.get('MEGA_EMAIL');
-    const password = this.configService.get('MEGA_PASSWORD');
-    if (!email || !password) {
-      throw new BadRequestException(
-        'MEGA_EMAIL or MEGA_PASSWORD is not set in environment variables',
-      );
-    }
-
-    const encryptedCredentials = await this.encryptionService.encrypt(
-      JSON.stringify({ email, password }),
-      encryptionSecret,
-    );
-
-    const savedFile = await this.prisma.file.create({
-      data: {
-        name: file.originalname,
-        size: file.size,
-        type: file.mimetype,
-        url: url,
-        storageName: storageName,
-        path: folderPath,
-        cloudStorages: {
-          create: {
-            provider: 'mega',
-            apiKey: encryptedCredentials,
-          },
-        },
-      },
-    });
-
-    return savedFile.id;
+      await this.createFolderPath(storage, folderPath);
+    }, 'Create Folder');
   }
 
   async deleteFolder(folderPath: string): Promise<void> {
-    try {
-      const storage = await this.getMegaStorage();
-      let targetFolder: any = storage.root;
+    this.validateFolderPath(folderPath);
 
-      const folders = folderPath.split('/').filter((f) => f);
-      for (const folder of folders) {
-        const found = targetFolder.children.find(
-          (item: any) => item.name === folder && item.directory,
-        );
-        if (!found) {
-          throw new BadRequestException(`Folder '${folderPath}' not found`);
-        }
-        targetFolder = found;
-      }
+    return this.executeWithErrorHandling(async () => {
+      const storage = await this.getMegaStorage();
+      const targetFolder = await this.navigateToFolder(storage, folderPath);
 
       await new Promise<void>((resolve, reject) => {
         targetFolder.delete((err: any) => {
@@ -386,11 +240,6 @@ export class MegaService implements CloudStorageProvider {
           else resolve();
         });
       });
-    } catch (error) {
-      this.logger.error(`Mega folder deletion error: ${error.message}`);
-      throw new BadRequestException(
-        `Failed to delete folder from Mega: ${error.message}`,
-      );
-    }
+    }, 'Delete folder');
   }
 }
