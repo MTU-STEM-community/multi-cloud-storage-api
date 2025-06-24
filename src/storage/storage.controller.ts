@@ -17,13 +17,13 @@ import { FileValidationPipe } from '../common/pipes/file-validation.pipe';
 import { Response } from 'express';
 import { ApiTags } from '@nestjs/swagger';
 import {
-  UploadFileDoc,
-  ListFilesDoc,
-  DownloadFileDoc,
-  DeleteFileDoc,
-  CreateFolderDoc,
-  DeleteFolderDoc,
-} from './documentation';
+  ApiUploadFile,
+  ApiListFiles,
+  ApiDownloadFile,
+  ApiDeleteFile,
+  ApiCreateFolder,
+  ApiDeleteFolder,
+} from './decorators/storage-api.decorator';
 
 @ApiTags('storage')
 @Controller('storage')
@@ -31,12 +31,7 @@ export class StorageController {
   constructor(private readonly storageService: StorageService) {}
 
   @Post('upload/:provider')
-  @UploadFileDoc.ApiOperation
-  @UploadFileDoc.ApiConsumes
-  @UploadFileDoc.ApiParam
-  @UploadFileDoc.ApiQuery
-  @UploadFileDoc.ApiBody
-  @UploadFileDoc.ApiResponse
+  @ApiUploadFile()
   @UseInterceptors(FileInterceptor('file'))
   async uploadFile(
     @UploadedFile(FileValidationPipe) file: Express.Multer.File,
@@ -58,10 +53,7 @@ export class StorageController {
   }
 
   @Get('list/:provider')
-  @ListFilesDoc.ApiOperation
-  @ListFilesDoc.ApiParam
-  @ListFilesDoc.ApiQuery
-  @ListFilesDoc.ApiResponse
+  @ApiListFiles()
   async listFiles(
     @Param('provider') provider: string,
     @Query('folderPath') folderPath?: string,
@@ -70,11 +62,7 @@ export class StorageController {
   }
 
   @Get('download/:provider/:fileId')
-  @DownloadFileDoc.ApiOperation
-  @DownloadFileDoc.ApiParam
-  @DownloadFileDoc.ApiParam2
-  @DownloadFileDoc.ApiQuery
-  @DownloadFileDoc.ApiQuery2
+  @ApiDownloadFile()
   async downloadFile(
     @Param('provider') provider: string,
     @Param('fileId') fileId: string,
@@ -103,10 +91,7 @@ export class StorageController {
   }
 
   @Delete('delete/:provider/:fileId')
-  @DeleteFileDoc.ApiOperation
-  @DeleteFileDoc.ApiParam
-  @DeleteFileDoc.ApiParam2
-  @DeleteFileDoc.ApiQuery
+  @ApiDeleteFile()
   async deleteFile(
     @Param('provider') provider: string,
     @Param('fileId') fileId: string,
@@ -121,10 +106,7 @@ export class StorageController {
   }
 
   @Post(':provider/folder')
-  @CreateFolderDoc.ApiOperation
-  @CreateFolderDoc.ApiParam
-  @CreateFolderDoc.ApiBody
-  @CreateFolderDoc.ApiResponse
+  @ApiCreateFolder()
   async createFolder(
     @Param('provider') provider: string,
     @Body('folderPath') folderPath: string,
@@ -137,10 +119,7 @@ export class StorageController {
   }
 
   @Delete(':provider/folder')
-  @DeleteFolderDoc.ApiOperation
-  @DeleteFolderDoc.ApiParam
-  @DeleteFolderDoc.ApiBody
-  @DeleteFolderDoc.ApiResponse
+  @ApiDeleteFolder()
   async deleteFolder(
     @Param('provider') provider: string,
     @Query('folderPath') folderPath: string,
