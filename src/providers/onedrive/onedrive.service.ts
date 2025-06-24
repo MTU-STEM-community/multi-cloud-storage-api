@@ -1,41 +1,41 @@
-import { Injectable, Logger, BadRequestException } from '@nestjs/common';
+import { Injectable, BadRequestException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { PrismaService } from '../../prisma/prisma.service';
 import { EncryptionService } from '../../utils/encryption.util';
-import {
-  CloudStorageProvider,
-  FileListItem,
-} from '../../common/interfaces/cloud-storage.interface';
+import { BaseCloudStorageProvider } from '../../common/providers/base-cloud-storage.provider';
+import { FileListItem } from '../../common/interfaces/cloud-storage.interface';
 import { FileValidationPipe } from '../../common/pipes/file-validation.pipe';
 import axios from 'axios';
 
 @Injectable()
-export class OneDriveService implements CloudStorageProvider {
-  private readonly logger = new Logger(OneDriveService.name);
+export class OneDriveService extends BaseCloudStorageProvider {
   private readonly baseUrl = 'https://graph.microsoft.com/v1.0/me/drive';
 
   constructor(
-    private readonly configService: ConfigService,
-    private readonly prisma: PrismaService,
-    private readonly encryptionService: EncryptionService,
-  ) {}
+    configService: ConfigService,
+    prisma: PrismaService,
+    encryptionService: EncryptionService,
+  ) {
+    super(configService, prisma, encryptionService, 'OneDrive');
+  }
+
+  protected validateConfiguration(): void {
+    this.providerConfigService.getOneDriveConfig();
+  }
+
+  protected getCredentialsForEncryption(): Record<string, any> {
+    const config = this.providerConfigService.getOneDriveConfig();
+    return {
+      clientId: config.clientId,
+      clientSecret: config.clientSecret,
+      refreshToken: config.refreshToken,
+      tenantId: config.tenantId,
+    };
+  }
 
   private async getAccessToken(): Promise<string> {
-    const clientId = this.configService.get<string>('ONEDRIVE_CLIENT_ID');
-    const clientSecret = this.configService.get<string>(
-      'ONEDRIVE_CLIENT_SECRET',
-    );
-    const refreshToken = this.configService.get<string>(
-      'ONEDRIVE_REFRESH_TOKEN',
-    );
-    const tenantId =
-      this.configService.get<string>('ONEDRIVE_TENANT_ID') || 'common';
-
-    if (!clientId || !clientSecret || !refreshToken) {
-      throw new BadRequestException(
-        'OneDrive credentials are missing in environment variables.',
-      );
-    }
+    const { clientId, clientSecret, refreshToken, tenantId } =
+      this.getCredentialsForEncryption();
 
     try {
       const tokenUrl = `https://login.microsoftonline.com/${tenantId}/oauth2/v2.0/token`;
@@ -113,13 +113,14 @@ export class OneDriveService implements CloudStorageProvider {
     fileName: string,
     folderPath?: string,
   ): Promise<{ url: string; storageName: string }> {
-    try {
+    return this.executeWithErrorHandling(async () => {
+      this.validateFileOperation(file);
+
       await this.ensureFolderExists(folderPath);
       const headers = await this.getApiHeaders();
 
-      const uploadPath = folderPath
-        ? `${this.baseUrl}/root:/${folderPath}/${fileName}:/content`
-        : `${this.baseUrl}/root:/${fileName}:/content`;
+      const filePath = this.constructFilePath(fileName, folderPath);
+      const uploadPath = `${this.baseUrl}/root:/${filePath}:/content`;
 
       this.logger.log(`Uploading file '${fileName}' to OneDrive...`);
 
@@ -146,16 +147,11 @@ export class OneDriveService implements CloudStorageProvider {
         url: shareResponse.data.link.webUrl,
         storageName: fileName,
       };
-    } catch (error) {
-      this.logger.error(`OneDrive upload error: ${error.message}`);
-      throw new BadRequestException(
-        `Failed to upload file to OneDrive: ${error.message}`,
-      );
-    }
+    }, 'Upload file');
   }
 
   async listFiles(folderPath?: string): Promise<FileListItem[]> {
-    try {
+    return this.executeWithErrorHandling(async () => {
       const headers = await this.getApiHeaders();
 
       const listUrl = folderPath
@@ -175,139 +171,58 @@ export class OneDriveService implements CloudStorageProvider {
         path: folderPath ? `${folderPath}/${item.name}` : item.name,
         isFolder: !!item.folder,
       }));
-    } catch (error) {
-      this.logger.error(`OneDrive list files error: ${error.message}`);
-      throw new BadRequestException(
-        `Failed to list files from OneDrive: ${error.message}`,
-      );
-    }
+    }, 'List files');
   }
 
   async downloadFile(fileId: string, folderPath?: string): Promise<Buffer> {
-    try {
+    return this.executeWithErrorHandling(async () => {
       const headers = await this.getApiHeaders();
 
-      const filePath = folderPath
-        ? `${this.baseUrl}/root:/${folderPath}/${fileId}:/content`
-        : `${this.baseUrl}/root:/${fileId}:/content`;
+      const filePath = this.constructFilePath(fileId, folderPath);
+      const downloadUrl = `${this.baseUrl}/root:/${filePath}:/content`;
 
-      const response = await axios.get(filePath, {
+      const response = await axios.get(downloadUrl, {
         headers,
         responseType: 'arraybuffer',
       });
 
       return Buffer.from(response.data);
-    } catch (error) {
-      this.logger.error(`OneDrive download error: ${error.message}`);
-      throw new BadRequestException(
-        `Failed to download file from OneDrive: ${error.message}`,
-      );
-    }
+    }, 'Download file');
   }
 
   async deleteFile(fileId: string, folderPath?: string): Promise<void> {
-    try {
+    return this.executeWithErrorHandling(async () => {
       const headers = await this.getApiHeaders();
 
-      const filePath = folderPath
-        ? `${this.baseUrl}/root:/${folderPath}/${fileId}`
-        : `${this.baseUrl}/root:/${fileId}`;
+      const filePath = this.constructFilePath(fileId, folderPath);
+      const deleteUrl = `${this.baseUrl}/root:/${filePath}`;
 
-      await axios.delete(filePath, { headers });
+      await axios.delete(deleteUrl, { headers });
       this.logger.log(`File '${fileId}' deleted successfully from OneDrive`);
-    } catch (error) {
-      this.logger.error(`OneDrive delete error: ${error.message}`);
-      throw new BadRequestException(
-        `Failed to delete file from OneDrive: ${error.message}`,
-      );
-    }
+    }, 'Delete file');
   }
 
   async createFolder(folderPath: string): Promise<void> {
-    try {
-      if (!folderPath) {
-        throw new BadRequestException('Folder path is required');
-      }
+    this.validateFolderPath(folderPath);
 
+    return this.executeWithErrorHandling(async () => {
       await this.ensureFolderExists(folderPath);
       this.logger.log(`Folder '${folderPath}' created in OneDrive`);
-    } catch (error) {
-      if (error.message?.includes('already exists')) {
-        this.logger.log(`Folder '${folderPath}' already exists in OneDrive`);
-        return;
-      }
-      this.logger.error(`OneDrive create folder error: ${error.message}`);
-      throw new BadRequestException(
-        `Failed to create folder in OneDrive: ${error.message}`,
-      );
-    }
-  }
-
-  async saveFileRecord(
-    file: Express.Multer.File,
-    url: string,
-    storageName: string,
-    folderPath?: string,
-  ): Promise<string> {
-    const encryptionSecret = this.configService.get('ENCRYPTION_SECRET');
-    if (!encryptionSecret) {
-      throw new BadRequestException(
-        'ENCRYPTION_SECRET is not set in environment variables',
-      );
-    }
-
-    const clientId = this.configService.get('ONEDRIVE_CLIENT_ID');
-    const clientSecret = this.configService.get('ONEDRIVE_CLIENT_SECRET');
-    const refreshToken = this.configService.get('ONEDRIVE_REFRESH_TOKEN');
-    const tenantId = this.configService.get('ONEDRIVE_TENANT_ID');
-
-    if (!clientId || !clientSecret || !refreshToken) {
-      throw new BadRequestException(
-        'OneDrive credentials are not set in environment variables',
-      );
-    }
-
-    const encryptedCredentials = await this.encryptionService.encrypt(
-      JSON.stringify({
-        clientId,
-        clientSecret,
-        refreshToken,
-        tenantId,
-      }),
-      encryptionSecret,
-    );
-
-    const savedFile = await this.prisma.file.create({
-      data: {
-        name: file.originalname,
-        size: file.size,
-        type: file.mimetype,
-        url: url,
-        storageName: storageName,
-        path: folderPath,
-        cloudStorages: {
-          create: {
-            provider: 'onedrive',
-            apiKey: encryptedCredentials,
-          },
-        },
-      },
-    });
-
-    return savedFile.id;
+    }, 'Create folder');
   }
 
   async deleteFolder(folderPath: string): Promise<void> {
-    try {
+    this.validateFolderPath(folderPath);
+
+    return this.executeWithErrorHandling(async () => {
       const headers = await this.getApiHeaders();
-      await axios.delete(`${this.baseUrl}/root:/${folderPath}`, { headers });
+      const normalizedPath = this.normalizeFolderPath(folderPath);
+      await axios.delete(`${this.baseUrl}/root:/${normalizedPath}`, {
+        headers,
+      });
       this.logger.log(
         `Folder '${folderPath}' deleted successfully from OneDrive`,
       );
-    } catch (error) {
-      throw new BadRequestException(
-        `Failed to delete folder from OneDrive: ${error.message}`,
-      );
-    }
+    }, 'Delete folder');
   }
 }
