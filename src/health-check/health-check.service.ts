@@ -1,5 +1,6 @@
 import { Injectable, Logger, HttpStatus, HttpException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
+import * as os from 'os';
 
 @Injectable()
 export class HealthCheckService {
@@ -35,7 +36,7 @@ export class HealthCheckService {
         error: {},
         details: {
           environment: process.env.NODE_ENV || 'development',
-          hostname: require('os').hostname(),
+          hostname: os.hostname(),
         },
       };
 

@@ -22,7 +22,7 @@ import {
   DownloadFileDoc,
   DeleteFileDoc,
   CreateFolderDoc,
-  DeleteFolderDoc
+  DeleteFolderDoc,
 } from './documentation';
 
 @ApiTags('storage')
@@ -88,7 +88,7 @@ export class StorageController {
       folderPath,
     );
 
-    let contentType = FileValidationPipe.getMimeType(fileId);
+    const contentType = FileValidationPipe.getMimeType(fileId);
 
     const downloadName = originalName || fileId;
 
