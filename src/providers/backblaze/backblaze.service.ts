@@ -395,6 +395,8 @@ export class BackblazeService extends BaseCloudStorageProvider {
   }
 
   async createFolder(folderPath: string): Promise<void> {
+    this.validateFolderPath(folderPath);
+
     return this.executeWithErrorHandling(async () => {
       const bucketId = await this.getBucketId();
       const { uploadUrl, authorizationToken } =
@@ -432,6 +434,8 @@ export class BackblazeService extends BaseCloudStorageProvider {
   }
 
   async deleteFolder(folderPath: string): Promise<void> {
+    this.validateFolderPath(folderPath);
+
     return this.executeWithErrorHandling(async () => {
       const bucketId = await this.getBucketId();
       const { authorizationToken, apiUrl } = await this.getAuthToken();
