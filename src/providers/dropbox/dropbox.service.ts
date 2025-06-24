@@ -1,46 +1,45 @@
-import { Injectable, Logger, BadRequestException } from '@nestjs/common';
+import { Injectable, BadRequestException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { PrismaService } from '../../prisma/prisma.service';
 import { EncryptionService } from '../../utils/encryption.util';
 import { Dropbox } from 'dropbox';
-import {
-  CloudStorageProvider,
-  FileListItem,
-} from '../../common/interfaces/cloud-storage.interface';
+import { BaseCloudStorageProvider } from '../../common/providers/base-cloud-storage.provider';
+import { FileListItem } from '../../common/interfaces/cloud-storage.interface';
 
 @Injectable()
-export class DropboxService implements CloudStorageProvider {
-  private readonly logger = new Logger(DropboxService.name);
-
+export class DropboxService extends BaseCloudStorageProvider {
   constructor(
-    private readonly configService: ConfigService,
-    private readonly prisma: PrismaService,
-    private readonly encryptionService: EncryptionService,
-  ) {}
+    configService: ConfigService,
+    prisma: PrismaService,
+    encryptionService: EncryptionService,
+  ) {
+    super(configService, prisma, encryptionService, 'Dropbox');
+  }
+
+  protected validateConfiguration(): void {
+    this.providerConfigService.getDropboxConfig();
+  }
+
+  protected getCredentialsForEncryption(): Record<string, any> {
+    const config = this.providerConfigService.getDropboxConfig();
+    return { accessToken: config.accessToken };
+  }
+
+  private getDropboxClient(): Dropbox {
+    const config = this.providerConfigService.getDropboxConfig();
+    return new Dropbox({ accessToken: config.accessToken });
+  }
 
   async uploadFile(
     file: Express.Multer.File,
     fileName: string,
     folderPath?: string,
   ): Promise<{ url: string; storageName: string }> {
-    const accessToken = this.configService.get<string>('DROPBOX_ACCESS_TOKEN');
+    return this.executeWithErrorHandling(async () => {
+      this.validateFileOperation(file);
 
-    if (!accessToken) {
-      throw new BadRequestException(
-        'DROPBOX_ACCESS_TOKEN is missing in environment variables.',
-      );
-    }
-
-    const dropbox = new Dropbox({ accessToken });
-
-    try {
-      if (!file.buffer || !(file.buffer instanceof Buffer)) {
-        throw new BadRequestException('Invalid file buffer');
-      }
-
-      const fullPath = folderPath
-        ? `/${folderPath}/${fileName}`
-        : `/${fileName}`;
+      const dropbox = this.getDropboxClient();
+      const fullPath = `/${this.constructFilePath(fileName, folderPath)}`;
 
       const response = await dropbox.filesUpload({
         path: fullPath,
@@ -50,7 +49,7 @@ export class DropboxService implements CloudStorageProvider {
       });
 
       if (!response.result) {
-        throw new BadRequestException('Failed to upload file to Dropbox.');
+        throw new Error('Failed to upload file to Dropbox');
       }
 
       const linkResponse = await dropbox.sharingCreateSharedLinkWithSettings({
@@ -61,44 +60,30 @@ export class DropboxService implements CloudStorageProvider {
         url: linkResponse.result.url.replace('?dl=0', '?raw=1'),
         storageName: fileName,
       };
-    } catch (error) {
-      throw new BadRequestException(`Dropbox upload error: ${error.message}`);
-    }
+    }, 'Upload file');
   }
 
   async listFiles(folderPath?: string): Promise<FileListItem[]> {
-    const accessToken = this.configService.get<string>('DROPBOX_ACCESS_TOKEN');
-    if (!accessToken) {
-      throw new BadRequestException(
-        'DROPBOX_ACCESS_TOKEN is missing in environment variables.',
-      );
-    }
+    return this.executeWithErrorHandling(async () => {
+      const dropbox = this.getDropboxClient();
+      const path = folderPath ? `/${this.normalizeFolderPath(folderPath)}` : '';
+      const response = await dropbox.filesListFolder({ path });
 
-    const dropbox = new Dropbox({ accessToken });
-    const path = folderPath ? `/${folderPath}` : '';
-    const response = await dropbox.filesListFolder({ path });
-
-    return response.result.entries.map((entry) => ({
-      name: entry.name,
-      path: entry.path_lower,
-      size: (entry as any).size || 'Unknown',
-      contentType: (entry as any).content_type || 'Unknown',
-      modified: (entry as any).server_modified || 'Unknown',
-      isFolder: entry['.tag'] === 'folder',
-    }));
+      return response.result.entries.map((entry) => ({
+        name: entry.name,
+        path: entry.path_lower,
+        size: (entry as any).size || 'Unknown',
+        contentType: (entry as any).content_type || 'Unknown',
+        modified: (entry as any).server_modified || 'Unknown',
+        isFolder: entry['.tag'] === 'folder',
+      }));
+    }, 'List files');
   }
 
   async downloadFile(fileId: string, folderPath?: string): Promise<Buffer> {
-    const accessToken = this.configService.get<string>('DROPBOX_ACCESS_TOKEN');
-    if (!accessToken) {
-      throw new BadRequestException(
-        'DROPBOX_ACCESS_TOKEN is missing in environment variables.',
-      );
-    }
-
-    try {
-      const dropbox = new Dropbox({ accessToken });
-      const path = folderPath ? `/${folderPath}/${fileId}` : `/${fileId}`;
+    return this.executeWithErrorHandling(async () => {
+      const dropbox = this.getDropboxClient();
+      const path = `/${this.constructFilePath(fileId, folderPath)}`;
       const response = await dropbox.filesDownload({ path });
 
       const fileContents =
@@ -106,120 +91,47 @@ export class DropboxService implements CloudStorageProvider {
         (response.result as any).fileContents;
 
       if (!fileContents) {
-        throw new BadRequestException(
-          'Failed to retrieve file contents from Dropbox',
-        );
+        throw new Error('Failed to retrieve file contents from Dropbox');
       }
 
       return Buffer.from(fileContents);
-    } catch (error) {
-      throw new BadRequestException(
-        `Failed to download file from Dropbox: ${error.message}`,
-      );
-    }
+    }, 'Download file');
   }
 
   async deleteFile(fileId: string, folderPath?: string): Promise<void> {
-    const accessToken = this.configService.get<string>('DROPBOX_ACCESS_TOKEN');
-    if (!accessToken) {
-      throw new BadRequestException(
-        'DROPBOX_ACCESS_TOKEN is missing in environment variables.',
-      );
-    }
-
-    try {
-      const dropbox = new Dropbox({ accessToken });
-      const path = folderPath ? `/${folderPath}/${fileId}` : `/${fileId}`;
+    return this.executeWithErrorHandling(async () => {
+      const dropbox = this.getDropboxClient();
+      const path = `/${this.constructFilePath(fileId, folderPath)}`;
       await dropbox.filesDeleteV2({ path });
-    } catch (error) {
-      throw new BadRequestException(
-        `Failed to delete file from Dropbox: ${error.message}`,
-      );
-    }
+    }, 'Delete file');
   }
 
   async createFolder(folderPath: string): Promise<void> {
-    const accessToken = this.configService.get<string>('DROPBOX_ACCESS_TOKEN');
-    if (!accessToken) {
-      throw new BadRequestException(
-        'DROPBOX_ACCESS_TOKEN is missing in environment variables.',
-      );
-    }
+    this.validateFolderPath(folderPath);
 
-    try {
-      const dropbox = new Dropbox({ accessToken });
-      await dropbox.filesCreateFolderV2({ path: `/${folderPath}` });
-    } catch (error) {
-      if (error.status === 409) {
-        this.logger.log(`Folder '${folderPath}' already exists in Dropbox`);
-        return;
+    return this.executeWithErrorHandling(async () => {
+      const dropbox = this.getDropboxClient();
+      const normalizedPath = this.normalizeFolderPath(folderPath);
+
+      try {
+        await dropbox.filesCreateFolderV2({ path: `/${normalizedPath}` });
+      } catch (error) {
+        if (error.status === 409) {
+          this.logger.log(`Folder '${folderPath}' already exists in Dropbox`);
+          return;
+        }
+        throw error;
       }
-      throw new BadRequestException(
-        `Failed to create folder in Dropbox: ${error.message}`,
-      );
-    }
-  }
-
-  async saveFileRecord(
-    file: Express.Multer.File,
-    url: string,
-    storageName: string,
-    folderPath?: string,
-  ): Promise<string> {
-    const encryptionSecret = this.configService.get('ENCRYPTION_SECRET');
-    if (!encryptionSecret) {
-      throw new BadRequestException(
-        'ENCRYPTION_SECRET is not set in environment variables',
-      );
-    }
-
-    const accessToken = this.configService.get('DROPBOX_ACCESS_TOKEN');
-    if (!accessToken) {
-      throw new BadRequestException(
-        'DROPBOX_ACCESS_TOKEN is not set in environment variables',
-      );
-    }
-
-    const encryptedToken = await this.encryptionService.encrypt(
-      accessToken,
-      encryptionSecret,
-    );
-
-    const savedFile = await this.prisma.file.create({
-      data: {
-        name: file.originalname,
-        size: file.size,
-        type: file.mimetype,
-        url: url,
-        storageName: storageName,
-        path: folderPath,
-        cloudStorages: {
-          create: {
-            provider: 'dropbox',
-            apiKey: encryptedToken,
-          },
-        },
-      },
-    });
-
-    return savedFile.id;
+    }, 'Create folder');
   }
 
   async deleteFolder(folderPath: string): Promise<void> {
-    const accessToken = this.configService.get<string>('DROPBOX_ACCESS_TOKEN');
-    if (!accessToken) {
-      throw new BadRequestException(
-        'DROPBOX_ACCESS_TOKEN is missing in environment variables.',
-      );
-    }
+    this.validateFolderPath(folderPath);
 
-    try {
-      const dropbox = new Dropbox({ accessToken });
-      await dropbox.filesDeleteV2({ path: `/${folderPath}` });
-    } catch (error) {
-      throw new BadRequestException(
-        `Failed to delete folder from Dropbox: ${error.message}`,
-      );
-    }
+    return this.executeWithErrorHandling(async () => {
+      const dropbox = this.getDropboxClient();
+      const normalizedPath = this.normalizeFolderPath(folderPath);
+      await dropbox.filesDeleteV2({ path: `/${normalizedPath}` });
+    }, 'Delete folder');
   }
 }
