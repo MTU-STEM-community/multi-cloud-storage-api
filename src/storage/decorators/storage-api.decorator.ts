@@ -18,7 +18,8 @@ export const ApiUploadFile = () =>
   applyDecorators(
     ApiOperation({
       summary: 'Upload file to cloud storage',
-      description: 'Upload a file to the specified cloud storage provider with optional folder path',
+      description:
+        'Upload a file to the specified cloud storage provider with optional folder path',
     }),
     ApiConsumes('multipart/form-data'),
     ApiProviderParam(),
@@ -30,11 +31,25 @@ export const ApiUploadFile = () =>
       schema: {
         type: 'object',
         properties: {
-          url: { type: 'string', example: 'https://dropbox.com/s/abc123/document.pdf' },
+          url: {
+            type: 'string',
+            example: 'https://dropbox.com/s/abc123/document.pdf',
+          },
           originalName: { type: 'string', example: 'document.pdf' },
-          storageName: { type: 'string', example: '1640995200000_document.pdf' },
-          fileId: { type: 'string', format: 'uuid', example: 'clp1234567890abcdef' },
-          folderPath: { type: 'string', example: 'documents/projects', nullable: true },
+          storageName: {
+            type: 'string',
+            example: '1640995200000_document.pdf',
+          },
+          fileId: {
+            type: 'string',
+            format: 'uuid',
+            example: 'clp1234567890abcdef',
+          },
+          folderPath: {
+            type: 'string',
+            example: 'documents/projects',
+            nullable: true,
+          },
         },
       },
     }),
@@ -57,7 +72,8 @@ export const ApiListFiles = () =>
   applyDecorators(
     ApiOperation({
       summary: 'List files from cloud storage',
-      description: 'Retrieve a list of files from the specified cloud storage provider',
+      description:
+        'Retrieve a list of files from the specified cloud storage provider',
     }),
     ApiProviderParam(),
     ApiFolderPathQuery(false),
@@ -74,7 +90,10 @@ export const ApiListFiles = () =>
             contentType: { type: 'string', example: 'application/pdf' },
             created: { type: 'string', format: 'date-time' },
             updated: { type: 'string', format: 'date-time' },
-            path: { type: 'string', example: 'documents/projects/document.pdf' },
+            path: {
+              type: 'string',
+              example: 'documents/projects/document.pdf',
+            },
             isFolder: { type: 'boolean', example: false },
           },
         },
@@ -117,7 +136,10 @@ export const ApiDownloadFile = () =>
         },
         'Content-Disposition': {
           description: 'File attachment header',
-          schema: { type: 'string', example: 'attachment; filename="document.pdf"' },
+          schema: {
+            type: 'string',
+            example: 'attachment; filename="document.pdf"',
+          },
         },
         'Content-Length': {
           description: 'File size in bytes',
@@ -155,7 +177,10 @@ export const ApiDeleteFile = () =>
       schema: {
         type: 'object',
         properties: {
-          message: { type: 'string', example: 'File document.pdf successfully deleted from dropbox' },
+          message: {
+            type: 'string',
+            example: 'File document.pdf successfully deleted from dropbox',
+          },
         },
       },
     }),
@@ -178,7 +203,8 @@ export const ApiCreateFolder = () =>
   applyDecorators(
     ApiOperation({
       summary: 'Create folder in cloud storage',
-      description: 'Create a new folder in the specified cloud storage provider',
+      description:
+        'Create a new folder in the specified cloud storage provider',
     }),
     ApiProviderParam(),
     ApiFolderPathBody(),
@@ -188,7 +214,10 @@ export const ApiCreateFolder = () =>
       schema: {
         type: 'object',
         properties: {
-          message: { type: 'string', example: 'Folder successfully created in dropbox' },
+          message: {
+            type: 'string',
+            example: 'Folder successfully created in dropbox',
+          },
           folderPath: { type: 'string', example: 'documents/projects' },
         },
       },
@@ -212,7 +241,8 @@ export const ApiDeleteFolder = () =>
   applyDecorators(
     ApiOperation({
       summary: 'Delete folder from cloud storage',
-      description: 'Delete a folder and its contents from the specified cloud storage provider',
+      description:
+        'Delete a folder and its contents from the specified cloud storage provider',
     }),
     ApiProviderParam(),
     ApiFolderPathQuery(true),
@@ -222,7 +252,11 @@ export const ApiDeleteFolder = () =>
       schema: {
         type: 'object',
         properties: {
-          message: { type: 'string', example: 'Folder \'documents/projects\' successfully deleted from dropbox' },
+          message: {
+            type: 'string',
+            example:
+              "Folder 'documents/projects' successfully deleted from dropbox",
+          },
         },
       },
     }),

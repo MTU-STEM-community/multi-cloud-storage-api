@@ -88,7 +88,14 @@ export const ApiProviderParam = () =>
     name: 'provider',
     type: 'string',
     description: 'Cloud storage provider',
-    enum: ['google-cloud', 'dropbox', 'mega', 'google-drive', 'backblaze', 'onedrive'],
+    enum: [
+      'google-cloud',
+      'dropbox',
+      'mega',
+      'google-drive',
+      'backblaze',
+      'onedrive',
+    ],
     example: 'dropbox',
   });
 
@@ -166,7 +173,10 @@ export const ApiBulkOperationResponse = (entityName: string) => ({
         type: 'object',
         properties: {
           row: { type: 'number', example: 3 },
-          error: { type: 'string', example: `${entityName} code already exists` },
+          error: {
+            type: 'string',
+            example: `${entityName} code already exists`,
+          },
         },
       },
     },
@@ -195,7 +205,10 @@ export const ApiCsvTemplateResponse = () =>
       },
       'Content-Disposition': {
         description: 'File attachment',
-        schema: { type: 'string', example: 'attachment; filename=template.csv' },
+        schema: {
+          type: 'string',
+          example: 'attachment; filename=template.csv',
+        },
       },
     },
   });

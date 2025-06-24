@@ -1,17 +1,13 @@
 import { applyDecorators } from '@nestjs/common';
-import {
-  ApiOperation,
-  ApiResponse,
-} from '@nestjs/swagger';
-import {
-  ApiStandardResponses,
-} from '../../common/decorators/base-api.decorator';
+import { ApiOperation, ApiResponse } from '@nestjs/swagger';
+import { ApiStandardResponses } from '../../common/decorators/base-api.decorator';
 
 export const ApiHealthCheck = () =>
   applyDecorators(
     ApiOperation({
       summary: 'Check application health status',
-      description: 'Comprehensive health check including database, memory, and uptime status',
+      description:
+        'Comprehensive health check including database, memory, and uptime status',
     }),
     ApiResponse({
       status: 200,
@@ -32,50 +28,50 @@ export const ApiHealthCheck = () =>
               database: {
                 type: 'object',
                 properties: {
-                  status: { 
-                    type: 'string', 
+                  status: {
+                    type: 'string',
                     enum: ['ok', 'error'],
-                    example: 'ok' 
+                    example: 'ok',
                   },
-                  responseTime: { 
-                    type: 'number', 
+                  responseTime: {
+                    type: 'number',
                     example: 15,
-                    description: 'Database response time in milliseconds'
+                    description: 'Database response time in milliseconds',
                   },
                 },
               },
               memory: {
                 type: 'object',
                 properties: {
-                  status: { 
-                    type: 'string', 
+                  status: {
+                    type: 'string',
                     enum: ['ok', 'warning', 'error'],
-                    example: 'ok' 
+                    example: 'ok',
                   },
-                  usage: { 
-                    type: 'number', 
+                  usage: {
+                    type: 'number',
                     example: 45.2,
-                    description: 'Memory usage percentage'
+                    description: 'Memory usage percentage',
                   },
-                  threshold: { 
-                    type: 'number', 
+                  threshold: {
+                    type: 'number',
                     example: 80,
-                    description: 'Memory usage threshold percentage'
+                    description: 'Memory usage threshold percentage',
                   },
                 },
               },
               uptime: {
                 type: 'object',
                 properties: {
-                  status: { 
-                    type: 'string', 
+                  status: {
+                    type: 'string',
                     enum: ['ok'],
-                    example: 'ok' 
+                    example: 'ok',
                   },
-                  value: { 
-                    type: 'number', 
+                  value: {
+                    type: 'number',
                     example: 3600,
-                    description: 'Application uptime in seconds'
+                    description: 'Application uptime in seconds',
                   },
                 },
               },
@@ -93,12 +89,12 @@ export const ApiHealthCheck = () =>
               environment: {
                 type: 'string',
                 example: 'production',
-                description: 'Current environment'
+                description: 'Current environment',
               },
               hostname: {
                 type: 'string',
                 example: 'server-01',
-                description: 'Server hostname'
+                description: 'Server hostname',
               },
             },
           },
@@ -111,22 +107,22 @@ export const ApiHealthCheck = () =>
       schema: {
         type: 'object',
         properties: {
-          status: { 
-            type: 'string', 
+          status: {
+            type: 'string',
             example: 'error',
-            description: 'Health status indicating failure'
+            description: 'Health status indicating failure',
           },
           info: {
             type: 'object',
             description: 'Health information for components that are working',
           },
-          error: { 
+          error: {
             type: 'object',
             description: 'Detailed error information for failed components',
             example: {
               database: 'Connection timeout after 5000ms',
-              memory: 'Memory usage 95% exceeds threshold of 80%'
-            }
+              memory: 'Memory usage 95% exceeds threshold of 80%',
+            },
           },
           details: {
             type: 'object',
@@ -142,7 +138,8 @@ export const ApiLivenessCheck = () =>
   applyDecorators(
     ApiOperation({
       summary: 'Basic liveness probe',
-      description: 'Simple endpoint to verify the application is running and responsive',
+      description:
+        'Simple endpoint to verify the application is running and responsive',
     }),
     ApiResponse({
       status: 200,
@@ -150,16 +147,16 @@ export const ApiLivenessCheck = () =>
       schema: {
         type: 'object',
         properties: {
-          status: { 
-            type: 'string', 
+          status: {
+            type: 'string',
             example: 'ok',
-            description: 'Liveness status'
+            description: 'Liveness status',
           },
-          timestamp: { 
-            type: 'string', 
+          timestamp: {
+            type: 'string',
             format: 'date-time',
             example: '2024-06-24T21:30:00.000Z',
-            description: 'Current server timestamp'
+            description: 'Current server timestamp',
           },
         },
       },
@@ -171,7 +168,8 @@ export const ApiReadinessCheck = () =>
   applyDecorators(
     ApiOperation({
       summary: 'Readiness probe',
-      description: 'Check if application is ready to accept traffic and handle requests',
+      description:
+        'Check if application is ready to accept traffic and handle requests',
     }),
     ApiResponse({
       status: 200,
@@ -179,21 +177,21 @@ export const ApiReadinessCheck = () =>
       schema: {
         type: 'object',
         properties: {
-          status: { 
-            type: 'string', 
+          status: {
+            type: 'string',
             example: 'ok',
-            description: 'Readiness status'
+            description: 'Readiness status',
           },
-          timestamp: { 
-            type: 'string', 
+          timestamp: {
+            type: 'string',
             format: 'date-time',
             example: '2024-06-24T21:30:00.000Z',
-            description: 'Current server timestamp'
+            description: 'Current server timestamp',
           },
-          uptime: { 
-            type: 'number', 
+          uptime: {
+            type: 'number',
             example: 3600,
-            description: 'Application uptime in seconds'
+            description: 'Application uptime in seconds',
           },
         },
       },
@@ -204,19 +202,19 @@ export const ApiReadinessCheck = () =>
       schema: {
         type: 'object',
         properties: {
-          status: { 
-            type: 'string', 
+          status: {
+            type: 'string',
             example: 'error',
-            description: 'Readiness status indicating not ready'
+            description: 'Readiness status indicating not ready',
           },
-          timestamp: { 
-            type: 'string', 
-            format: 'date-time'
+          timestamp: {
+            type: 'string',
+            format: 'date-time',
           },
           error: {
             type: 'string',
             example: 'Database connection not available',
-            description: 'Reason why application is not ready'
+            description: 'Reason why application is not ready',
           },
         },
       },
