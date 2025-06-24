@@ -2,40 +2,39 @@ import { Injectable, Logger, BadRequestException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { PrismaService } from '../../prisma/prisma.service';
 import { EncryptionService } from '../../utils/encryption.util';
-import {
-  CloudStorageProvider,
-  FileListItem,
-} from '../../common/interfaces/cloud-storage.interface';
+import { FileListItem } from '../../common/interfaces/cloud-storage.interface';
 import { drive_v3 } from '@googleapis/drive';
 import { OAuth2Client } from 'google-auth-library';
 import { google } from 'googleapis';
 import { Readable } from 'stream';
+import { BaseCloudStorageProvider } from '../../common/providers/base-cloud-storage.provider';
 
 @Injectable()
-export class GoogleDriveService implements CloudStorageProvider {
-  private readonly logger = new Logger(GoogleDriveService.name);
-  private readonly SCOPES = ['https://www.googleapis.com/auth/drive'];
-
+export class GoogleDriveService extends BaseCloudStorageProvider {
   constructor(
-    private readonly configService: ConfigService,
-    private readonly prisma: PrismaService,
-    private readonly encryptionService: EncryptionService,
-  ) {}
+    configService: ConfigService,
+    prisma: PrismaService,
+    encryptionService: EncryptionService,
+  ) {
+    super(configService, prisma, encryptionService, 'GoogleDrive');
+  }
+
+  protected validateConfiguration(): void {
+    this.providerConfigService.getGoogleDriveConfig();
+  }
+
+  protected getCredentialsForEncryption(): Record<string, any> {
+    const config = this.providerConfigService.getGoogleDriveConfig();
+    return {
+      clientId: config.clientId,
+      clientSecret: config.clientSecret,
+      refreshToken: config.refreshToken,
+    };
+  }
 
   private async getDriveClient(): Promise<drive_v3.Drive> {
-    const clientId = this.configService.get<string>('GOOGLE_DRIVE_CLIENT_ID');
-    const clientSecret = this.configService.get<string>(
-      'GOOGLE_DRIVE_CLIENT_SECRET',
-    );
-    const refreshToken = this.configService.get<string>(
-      'GOOGLE_DRIVE_REFRESH_TOKEN',
-    );
-
-    if (!clientId || !clientSecret || !refreshToken) {
-      throw new BadRequestException(
-        'Google Drive API credentials are missing in environment variables.',
-      );
-    }
+    const { clientId, clientSecret, refreshToken } =
+      this.getCredentialsForEncryption();
 
     try {
       const auth = new OAuth2Client(clientId, clientSecret);
@@ -96,7 +95,8 @@ export class GoogleDriveService implements CloudStorageProvider {
     fileName: string,
     folderPath?: string,
   ): Promise<{ url: string; storageName: string }> {
-    try {
+    return this.executeWithErrorHandling(async () => {
+      this.validateFileOperation(file);
       const drive = await this.getDriveClient();
       const folderId = await this.getFolderId(folderPath, drive);
 
@@ -137,16 +137,11 @@ export class GoogleDriveService implements CloudStorageProvider {
         url: fileInfo.data.webViewLink,
         storageName: fileName,
       };
-    } catch (error) {
-      this.logger.error(`Google Drive upload error: ${error.message}`);
-      throw new BadRequestException(
-        `Failed to upload file to Google Drive: ${error.message}`,
-      );
-    }
+    }, 'Upload file');
   }
 
   async listFiles(folderPath?: string): Promise<FileListItem[]> {
-    try {
+    return this.executeWithErrorHandling(async () => {
       const drive = await this.getDriveClient();
       const folderId = await this.getFolderId(folderPath, drive);
 
@@ -170,16 +165,11 @@ export class GoogleDriveService implements CloudStorageProvider {
         path: folderPath ? `${folderPath}/${file.name}` : file.name,
         isFolder: file.mimeType === 'application/vnd.google-apps.folder',
       }));
-    } catch (error) {
-      this.logger.error(`Google Drive list files error: ${error.message}`);
-      throw new BadRequestException(
-        `Failed to list files from Google Drive: ${error.message}`,
-      );
-    }
+    }, 'List files');
   }
 
   async downloadFile(fileId: string, folderPath?: string): Promise<Buffer> {
-    try {
+    return this.executeWithErrorHandling(async () => {
       const drive = await this.getDriveClient();
 
       let driveFileId = fileId;
@@ -212,16 +202,11 @@ export class GoogleDriveService implements CloudStorageProvider {
       );
 
       return Buffer.from(response.data as ArrayBuffer);
-    } catch (error) {
-      this.logger.error(`Google Drive download error: ${error.message}`);
-      throw new BadRequestException(
-        `Failed to download file from Google Drive: ${error.message}`,
-      );
-    }
+    }, 'Download file');
   }
 
   async deleteFile(fileId: string, folderPath?: string): Promise<void> {
-    try {
+    return this.executeWithErrorHandling(async () => {
       const drive = await this.getDriveClient();
 
       let driveFileId = fileId;
@@ -248,98 +233,29 @@ export class GoogleDriveService implements CloudStorageProvider {
       await drive.files.delete({
         fileId: driveFileId,
       });
-    } catch (error) {
-      this.logger.error(`Google Drive delete error: ${error.message}`);
-      throw new BadRequestException(
-        `Failed to delete file from Google Drive: ${error.message}`,
-      );
-    }
+    }, 'Delete file');
   }
 
   async createFolder(folderPath: string): Promise<void> {
-    try {
-      if (!folderPath) {
-        throw new BadRequestException('Folder path is required');
-      }
+    this.validateFolderPath(folderPath);
 
+    return this.executeWithErrorHandling(async () => {
       const drive = await this.getDriveClient();
       await this.getFolderId(folderPath, drive);
       this.logger.log(`Folder '${folderPath}' created in Google Drive`);
-    } catch (error) {
-      if (error.message?.includes('already exists')) {
-        this.logger.log(
-          `Folder '${folderPath}' already exists in Google Drive`,
-        );
-        return;
-      }
-      this.logger.error(`Google Drive create folder error: ${error.message}`);
-      throw new BadRequestException(
-        `Failed to create folder in Google Drive: ${error.message}`,
-      );
-    }
-  }
-
-  async saveFileRecord(
-    file: Express.Multer.File,
-    url: string,
-    storageName: string,
-    folderPath?: string,
-  ): Promise<string> {
-    const encryptionSecret = this.configService.get('ENCRYPTION_SECRET');
-    if (!encryptionSecret) {
-      throw new BadRequestException(
-        'ENCRYPTION_SECRET is not set in environment variables',
-      );
-    }
-
-    const clientId = this.configService.get('GOOGLE_DRIVE_CLIENT_ID');
-    const clientSecret = this.configService.get('GOOGLE_DRIVE_CLIENT_SECRET');
-    const refreshToken = this.configService.get('GOOGLE_DRIVE_REFRESH_TOKEN');
-
-    if (!clientId || !clientSecret || !refreshToken) {
-      throw new BadRequestException(
-        'Google Drive API credentials are not set in environment variables',
-      );
-    }
-
-    const encryptedCredentials = await this.encryptionService.encrypt(
-      JSON.stringify({ clientId, clientSecret, refreshToken }),
-      encryptionSecret,
-    );
-
-    const savedFile = await this.prisma.file.create({
-      data: {
-        name: file.originalname,
-        size: file.size,
-        type: file.mimetype,
-        url: url,
-        storageName: storageName,
-        path: folderPath,
-        cloudStorages: {
-          create: {
-            provider: 'google-drive',
-            apiKey: encryptedCredentials,
-          },
-        },
-      },
-    });
-
-    return savedFile.id;
+    }, 'Create folder');
   }
 
   async deleteFolder(folderPath: string): Promise<void> {
-    try {
+    this.validateFolderPath(folderPath);
+
+    return this.executeWithErrorHandling(async () => {
       const drive = await this.getDriveClient();
       const folderId = await this.getFolderId(folderPath, drive);
 
       await drive.files.delete({
         fileId: folderId,
       });
-    } catch (error) {
-      this.logger.error(`Google Drive folder deletion error: ${error.message}`);
-      throw new BadRequestException(
-        `Failed to delete folder from Google Drive: ${error.message}`,
-      );
-    }
+    }, 'Delete folder');
   }
 }
