@@ -1,10 +1,5 @@
 import { Injectable, Logger, BadRequestException } from '@nestjs/common';
-import { GoogleCloudService } from '../providers/google-cloud/google-cloud.service';
-import { DropboxService } from '../providers/dropbox/dropbox.service';
-import { MegaService } from '../providers/mega/mega.service';
-import { GoogleDriveService } from '../providers/google-drive/google-drive.service';
-import { BackblazeService } from '../providers/backblaze/backblaze.service';
-import { OneDriveService } from '../providers/onedrive/onedrive.service';
+import { CloudStorageFactoryService } from '../common/providers/cloud-storage-factory.service';
 import {
   FileUploadResult,
   FileListItem,
@@ -15,13 +10,9 @@ export class StorageService {
   private readonly logger = new Logger(StorageService.name);
 
   constructor(
-    private readonly googleCloudService: GoogleCloudService,
-    private readonly dropboxService: DropboxService,
-    private readonly megaService: MegaService,
-    private readonly googleDriveService: GoogleDriveService,
-    private readonly backblazeService: BackblazeService,
-    private readonly oneDriveService: OneDriveService,
-  ) {}
+    private readonly cloudStorageFactory: CloudStorageFactoryService,
+  ) {
+  }
 
   async uploadFileToProvider(
     file: Express.Multer.File,
@@ -33,105 +24,28 @@ export class StorageService {
         throw new BadRequestException('Invalid file data');
       }
 
-      const storageName = `${Date.now()}_${file.originalname}`;
-      let url: string;
-      let fileId: string;
+      const storageProvider = await this.cloudStorageFactory.getProvider(provider);
+      const storageName = storageProvider.generateStorageName(file.originalname);
 
-      if (folderPath) {
-        await this.createFolderInProvider(provider, folderPath);
+      if (folderPath && storageProvider.createFolder) {
+        await storageProvider.createFolder(folderPath);
       }
 
-      switch (provider) {
-        case 'google-cloud':
-          const googleResult = await this.googleCloudService.uploadFile(
-            file,
-            storageName,
-            folderPath,
-          );
-          url = googleResult.url;
-          fileId = await this.googleCloudService.saveFileRecord(
-            file,
-            url,
-            storageName,
-            folderPath,
-          );
-          break;
-        case 'dropbox':
-          const dropboxResult = await this.dropboxService.uploadFile(
-            file,
-            storageName,
-            folderPath,
-          );
-          url = dropboxResult.url;
-          fileId = await this.dropboxService.saveFileRecord(
-            file,
-            url,
-            storageName,
-            folderPath,
-          );
-          break;
-        case 'mega':
-          const megaResult = await this.megaService.uploadFile(
-            file,
-            storageName,
-            folderPath,
-          );
-          url = megaResult.url;
-          fileId = await this.megaService.saveFileRecord(
-            file,
-            url,
-            storageName,
-            folderPath,
-          );
-          break;
-        case 'google-drive':
-          const googleDriveResult = await this.googleDriveService.uploadFile(
-            file,
-            storageName,
-            folderPath,
-          );
-          url = googleDriveResult.url;
-          fileId = await this.googleDriveService.saveFileRecord(
-            file,
-            url,
-            storageName,
-            folderPath,
-          );
-          break;
-        case 'backblaze':
-          const backblazeResult = await this.backblazeService.uploadFile(
-            file,
-            storageName,
-            folderPath,
-          );
-          url = backblazeResult.url;
-          fileId = await this.backblazeService.saveFileRecord(
-            file,
-            url,
-            storageName,
-            folderPath,
-          );
-          break;
-        case 'onedrive':
-          const oneDriveResult = await this.oneDriveService.uploadFile(
-            file,
-            storageName,
-            folderPath,
-          );
-          url = oneDriveResult.url;
-          fileId = await this.oneDriveService.saveFileRecord(
-            file,
-            url,
-            storageName,
-            folderPath,
-          );
-          break;
-        default:
-          throw new BadRequestException('Unsupported provider');
-      }
+      const uploadResult = await storageProvider.uploadFile(
+        file,
+        storageName,
+        folderPath,
+      );
+
+      const fileId = await storageProvider.saveFileRecord(
+        file,
+        uploadResult.url,
+        storageName,
+        folderPath,
+      );
 
       return {
-        url,
+        url: uploadResult.url,
         originalName: file.originalname,
         storageName,
         fileId,
@@ -148,22 +62,8 @@ export class StorageService {
     folderPath?: string,
   ): Promise<FileListItem[]> {
     try {
-      switch (provider) {
-        case 'google-cloud':
-          return this.googleCloudService.listFiles(folderPath);
-        case 'dropbox':
-          return this.dropboxService.listFiles(folderPath);
-        case 'mega':
-          return this.megaService.listFiles(folderPath);
-        case 'google-drive':
-          return this.googleDriveService.listFiles(folderPath);
-        case 'backblaze':
-          return this.backblazeService.listFiles(folderPath);
-        case 'onedrive':
-          return this.oneDriveService.listFiles(folderPath);
-        default:
-          throw new BadRequestException('Unsupported provider');
-      }
+      const storageProvider = await this.cloudStorageFactory.getProvider(provider);
+      return await storageProvider.listFiles(folderPath);
     } catch (error) {
       this.logger.error(`Listing files failed: ${error.message}`);
       throw error;
@@ -176,22 +76,8 @@ export class StorageService {
     folderPath?: string,
   ): Promise<Buffer> {
     try {
-      switch (provider) {
-        case 'google-cloud':
-          return await this.googleCloudService.downloadFile(fileId, folderPath);
-        case 'dropbox':
-          return await this.dropboxService.downloadFile(fileId, folderPath);
-        case 'mega':
-          return await this.megaService.downloadFile(fileId, folderPath);
-        case 'google-drive':
-          return await this.googleDriveService.downloadFile(fileId, folderPath);
-        case 'backblaze':
-          return await this.backblazeService.downloadFile(fileId, folderPath);
-        case 'onedrive':
-          return await this.oneDriveService.downloadFile(fileId, folderPath);
-        default:
-          throw new BadRequestException('Unsupported provider');
-      }
+      const storageProvider = await this.cloudStorageFactory.getProvider(provider);
+      return await storageProvider.downloadFile(fileId, folderPath);
     } catch (error) {
       this.logger.error(`Download failed: ${error.message}`);
       throw error;
@@ -204,22 +90,8 @@ export class StorageService {
     folderPath?: string,
   ): Promise<void> {
     try {
-      switch (provider) {
-        case 'google-cloud':
-          return await this.googleCloudService.deleteFile(fileId, folderPath);
-        case 'dropbox':
-          return await this.dropboxService.deleteFile(fileId, folderPath);
-        case 'mega':
-          return await this.megaService.deleteFile(fileId, folderPath);
-        case 'google-drive':
-          return await this.googleDriveService.deleteFile(fileId, folderPath);
-        case 'backblaze':
-          return await this.backblazeService.deleteFile(fileId, folderPath);
-        case 'onedrive':
-          return await this.oneDriveService.deleteFile(fileId, folderPath);
-        default:
-          throw new BadRequestException('Unsupported provider');
-      }
+      const storageProvider = await this.cloudStorageFactory.getProvider(provider);
+      return await storageProvider.deleteFile(fileId, folderPath);
     } catch (error) {
       this.logger.error(`Delete failed: ${error.message}`);
       throw error;
@@ -235,27 +107,9 @@ export class StorageService {
     }
 
     try {
-      switch (provider) {
-        case 'google-cloud':
-          await this.googleCloudService.createFolder(folderPath);
-          break;
-        case 'dropbox':
-          await this.dropboxService.createFolder(folderPath);
-          break;
-        case 'mega':
-          await this.megaService.createFolder(folderPath);
-          break;
-        case 'google-drive':
-          await this.googleDriveService.createFolder(folderPath);
-          break;
-        case 'backblaze':
-          await this.backblazeService.createFolder(folderPath);
-          break;
-        case 'onedrive':
-          await this.oneDriveService.createFolder(folderPath);
-          break;
-        default:
-          throw new BadRequestException('Unsupported provider');
+      const storageProvider = await this.cloudStorageFactory.getProvider(provider);
+      if (storageProvider.createFolder) {
+        await storageProvider.createFolder(folderPath);
       }
     } catch (error) {
       if (error.message?.includes('already exists')) {
@@ -276,28 +130,8 @@ export class StorageService {
     }
 
     try {
-      switch (provider) {
-        case 'google-cloud':
-          await this.googleCloudService.deleteFolder(folderPath);
-          break;
-        case 'dropbox':
-          await this.dropboxService.deleteFolder(folderPath);
-          break;
-        case 'mega':
-          await this.megaService.deleteFolder(folderPath);
-          break;
-        case 'google-drive':
-          await this.googleDriveService.deleteFolder(folderPath);
-          break;
-        case 'backblaze':
-          await this.backblazeService.deleteFolder(folderPath);
-          break;
-        case 'onedrive':
-          await this.oneDriveService.deleteFolder(folderPath);
-          break;
-        default:
-          throw new BadRequestException('Unsupported provider');
-      }
+      const storageProvider = await this.cloudStorageFactory.getProvider(provider);
+      await storageProvider.deleteFolder(folderPath);
     } catch (error) {
       this.logger.error(`Delete folder failed: ${error.message}`);
       throw error;
