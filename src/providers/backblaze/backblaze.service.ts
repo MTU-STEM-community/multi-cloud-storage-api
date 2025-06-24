@@ -2,38 +2,43 @@ import { Injectable, Logger, BadRequestException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { PrismaService } from '../../prisma/prisma.service';
 import { EncryptionService } from '../../utils/encryption.util';
-import {
-  CloudStorageProvider,
-  FileListItem,
-} from '../../common/interfaces/cloud-storage.interface';
+import { FileListItem } from '../../common/interfaces/cloud-storage.interface';
 import { FileValidationPipe } from '../../common/pipes/file-validation.pipe';
 import * as crypto from 'crypto';
+import { BaseCloudStorageProvider } from '../../common/providers/base-cloud-storage.provider';
 
 @Injectable()
-export class BackblazeService implements CloudStorageProvider {
-  private readonly logger = new Logger(BackblazeService.name);
+export class BackblazeService extends BaseCloudStorageProvider {
   private readonly B2_API_URL = 'https://api.backblazeb2.com';
 
   constructor(
-    private readonly configService: ConfigService,
-    private readonly prisma: PrismaService,
-    private readonly encryptionService: EncryptionService,
-  ) {}
+    configService: ConfigService,
+    prisma: PrismaService,
+    encryptionService: EncryptionService,
+  ) {
+    super(configService, prisma, encryptionService, 'Backblaze');
+  }
 
+  protected validateConfiguration(): void {
+    this.providerConfigService.getBackblazeConfig();
+  }
+
+  protected getCredentialsForEncryption(): Record<string, any> {
+    const config = this.providerConfigService.getBackblazeConfig();
+    return {
+      keyId: config.keyId,
+      applicationKey: config.applicationKey,
+    };
+  }
+
+  s;
   private async getAuthToken(): Promise<{
     authorizationToken: string;
     apiUrl: string;
     downloadUrl: string;
     accountId: string;
   }> {
-    const keyId = this.configService.get<string>('B2_KEY_ID');
-    const applicationKey = this.configService.get<string>('B2_APPLICATION_KEY');
-
-    if (!keyId || !applicationKey) {
-      throw new BadRequestException(
-        'B2_KEY_ID or B2_APPLICATION_KEY is missing in environment variables.',
-      );
-    }
+    const { keyId, applicationKey } = this.getCredentialsForEncryption();
 
     const credentials = Buffer.from(`${keyId}:${applicationKey}`).toString(
       'base64',
@@ -90,12 +95,7 @@ export class BackblazeService implements CloudStorageProvider {
   }
 
   private async getBucketId(): Promise<string> {
-    const bucketName = this.configService.get<string>('B2_BUCKET_NAME');
-    if (!bucketName) {
-      throw new BadRequestException(
-        'B2_BUCKET_NAME is missing in environment variables.',
-      );
-    }
+    const { bucketName } = this.providerConfigService.getBackblazeConfig();
 
     const { authorizationToken, apiUrl, accountId } = await this.getAuthToken();
 
@@ -193,12 +193,14 @@ export class BackblazeService implements CloudStorageProvider {
     fileName: string,
     folderPath?: string,
   ): Promise<{ url: string; storageName: string }> {
-    try {
+    return this.executeWithErrorHandling(async () => {
+      this.validateFileOperation(file);
+
       const bucketId = await this.getBucketId();
       const { uploadUrl, authorizationToken } =
         await this.getUploadUrl(bucketId);
 
-      const fullFileName = folderPath ? `${folderPath}/${fileName}` : fileName;
+      const fullFileName = this.constructFilePath(fileName, folderPath);
       const sha1Hash = crypto
         .createHash('sha1')
         .update(file.buffer)
@@ -222,7 +224,7 @@ export class BackblazeService implements CloudStorageProvider {
       }
 
       const uploadResult = await response.json();
-      const bucketName = this.configService.get<string>('B2_BUCKET_NAME');
+      const { bucketName } = this.providerConfigService.getBackblazeConfig();
       const { downloadUrl } = await this.getAuthToken();
 
       const fileUrl = `${downloadUrl}/file/${bucketName}/${fullFileName}`;
@@ -231,15 +233,11 @@ export class BackblazeService implements CloudStorageProvider {
         url: fileUrl,
         storageName: fileName,
       };
-    } catch (error) {
-      throw new BadRequestException(
-        `Failed to upload file to B2: ${error.message}`,
-      );
-    }
+    }, 'Upload File');
   }
 
   async listFiles(folderPath?: string): Promise<FileListItem[]> {
-    try {
+    return this.executeWithErrorHandling(async () => {
       const bucketId = await this.getBucketId();
       const { authorizationToken, apiUrl } = await this.getAuthToken();
 
@@ -274,18 +272,14 @@ export class BackblazeService implements CloudStorageProvider {
         path: file.fileName,
         isFolder: false,
       }));
-    } catch (error) {
-      throw new BadRequestException(
-        `Failed to list files from B2: ${error.message}`,
-      );
-    }
+    }, 'List Files');
   }
 
   async downloadFile(fileId: string, folderPath?: string): Promise<Buffer> {
-    try {
+    return this.executeWithErrorHandling(async () => {
       const { authorizationToken, apiUrl } = await this.getAuthToken();
       const bucketId = await this.getBucketId();
-      const fullFileName = folderPath ? `${folderPath}/${fileId}` : fileId;
+      const fullFileName = this.constructFilePath(fileId, folderPath);
 
       const listResponse = await fetch(
         `${apiUrl}/b2api/v2/b2_list_file_names`,
@@ -337,18 +331,14 @@ export class BackblazeService implements CloudStorageProvider {
 
       const arrayBuffer = await downloadResponse.arrayBuffer();
       return Buffer.from(arrayBuffer);
-    } catch (error) {
-      throw new BadRequestException(
-        `Failed to download file from B2: ${error.message}`,
-      );
-    }
+    }, 'Download File');
   }
 
   async deleteFile(fileId: string, folderPath?: string): Promise<void> {
-    try {
+    return this.executeWithErrorHandling(async () => {
       const { authorizationToken, apiUrl } = await this.getAuthToken();
       const bucketId = await this.getBucketId();
-      const fullFileName = folderPath ? `${folderPath}/${fileId}` : fileId;
+      const fullFileName = this.constructFilePath(fileId, folderPath);
 
       const listResponse = await fetch(
         `${apiUrl}/b2api/v2/b2_list_file_names`,
@@ -401,16 +391,11 @@ export class BackblazeService implements CloudStorageProvider {
       }
 
       this.logger.log(`File deleted successfully: ${fullFileName}`);
-    } catch (error) {
-      this.logger.error(`B2 delete error: ${error.message}`);
-      throw new BadRequestException(
-        `Failed to delete file from B2: ${error.message}`,
-      );
-    }
+    }, 'Delete File');
   }
 
   async createFolder(folderPath: string): Promise<void> {
-    try {
+    return this.executeWithErrorHandling(async () => {
       const bucketId = await this.getBucketId();
       const { uploadUrl, authorizationToken } =
         await this.getUploadUrl(bucketId);
@@ -443,66 +428,11 @@ export class BackblazeService implements CloudStorageProvider {
       }
 
       this.logger.log(`Folder '${folderPath}' created in B2`);
-    } catch (error) {
-      if (error.message?.includes('already exists')) {
-        this.logger.log(`Folder '${folderPath}' already exists in B2`);
-        return;
-      }
-      this.logger.error(`B2 create folder error: ${error.message}`);
-      throw new BadRequestException(
-        `Failed to create folder in B2: ${error.message}`,
-      );
-    }
-  }
-
-  async saveFileRecord(
-    file: Express.Multer.File,
-    url: string,
-    storageName: string,
-    folderPath?: string,
-  ): Promise<string> {
-    const encryptionSecret = this.configService.get('ENCRYPTION_SECRET');
-    if (!encryptionSecret) {
-      throw new BadRequestException(
-        'ENCRYPTION_SECRET is not set in environment variables',
-      );
-    }
-
-    const keyId = this.configService.get('B2_KEY_ID');
-    const applicationKey = this.configService.get('B2_APPLICATION_KEY');
-    if (!keyId || !applicationKey) {
-      throw new BadRequestException(
-        'B2_KEY_ID or B2_APPLICATION_KEY is not set in environment variables',
-      );
-    }
-
-    const encryptedCredentials = await this.encryptionService.encrypt(
-      JSON.stringify({ keyId, applicationKey }),
-      encryptionSecret,
-    );
-
-    const savedFile = await this.prisma.file.create({
-      data: {
-        name: file.originalname,
-        size: file.size,
-        type: file.mimetype,
-        url: url,
-        storageName: storageName,
-        path: folderPath,
-        cloudStorages: {
-          create: {
-            provider: 'backblaze',
-            apiKey: encryptedCredentials,
-          },
-        },
-      },
-    });
-
-    return savedFile.id;
+    }, 'Create Folder');
   }
 
   async deleteFolder(folderPath: string): Promise<void> {
-    try {
+    return this.executeWithErrorHandling(async () => {
       const bucketId = await this.getBucketId();
       const { authorizationToken, apiUrl } = await this.getAuthToken();
 
@@ -546,11 +476,6 @@ export class BackblazeService implements CloudStorageProvider {
           throw new Error(`HTTP ${deleteResponse.status}: ${errorText}`);
         }
       }
-    } catch (error) {
-      this.logger.error(`B2 folder deletion error: ${error.message}`);
-      throw new BadRequestException(
-        `Failed to delete folder from B2: ${error.message}`,
-      );
-    }
+    }, 'Delete Folder');
   }
 }
