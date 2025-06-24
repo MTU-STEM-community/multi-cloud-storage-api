@@ -1,4 +1,4 @@
-import { Injectable, Logger, BadRequestException } from '@nestjs/common';
+import { Injectable, BadRequestException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { PrismaService } from '../../prisma/prisma.service';
 import { EncryptionService } from '../../utils/encryption.util';
@@ -223,7 +223,7 @@ export class BackblazeService extends BaseCloudStorageProvider {
         throw new Error(`HTTP ${response.status}: ${errorText}`);
       }
 
-      const uploadResult = await response.json();
+      await response.json(); // Process response but don't store unused result
       const { bucketName } = this.providerConfigService.getBackblazeConfig();
       const { downloadUrl } = await this.getAuthToken();
 

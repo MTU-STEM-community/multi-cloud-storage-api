@@ -11,8 +11,7 @@ export class StorageService {
 
   constructor(
     private readonly cloudStorageFactory: CloudStorageFactoryService,
-  ) {
-  }
+  ) {}
 
   async uploadFileToProvider(
     file: Express.Multer.File,
@@ -24,8 +23,11 @@ export class StorageService {
         throw new BadRequestException('Invalid file data');
       }
 
-      const storageProvider = await this.cloudStorageFactory.getProvider(provider);
-      const storageName = storageProvider.generateStorageName(file.originalname);
+      const storageProvider =
+        await this.cloudStorageFactory.getProvider(provider);
+      const storageName = storageProvider.generateStorageName(
+        file.originalname,
+      );
 
       if (folderPath && storageProvider.createFolder) {
         await storageProvider.createFolder(folderPath);
@@ -62,7 +64,8 @@ export class StorageService {
     folderPath?: string,
   ): Promise<FileListItem[]> {
     try {
-      const storageProvider = await this.cloudStorageFactory.getProvider(provider);
+      const storageProvider =
+        await this.cloudStorageFactory.getProvider(provider);
       return await storageProvider.listFiles(folderPath);
     } catch (error) {
       this.logger.error(`Listing files failed: ${error.message}`);
@@ -76,7 +79,8 @@ export class StorageService {
     folderPath?: string,
   ): Promise<Buffer> {
     try {
-      const storageProvider = await this.cloudStorageFactory.getProvider(provider);
+      const storageProvider =
+        await this.cloudStorageFactory.getProvider(provider);
       return await storageProvider.downloadFile(fileId, folderPath);
     } catch (error) {
       this.logger.error(`Download failed: ${error.message}`);
@@ -90,7 +94,8 @@ export class StorageService {
     folderPath?: string,
   ): Promise<void> {
     try {
-      const storageProvider = await this.cloudStorageFactory.getProvider(provider);
+      const storageProvider =
+        await this.cloudStorageFactory.getProvider(provider);
       return await storageProvider.deleteFile(fileId, folderPath);
     } catch (error) {
       this.logger.error(`Delete failed: ${error.message}`);
@@ -107,7 +112,8 @@ export class StorageService {
     }
 
     try {
-      const storageProvider = await this.cloudStorageFactory.getProvider(provider);
+      const storageProvider =
+        await this.cloudStorageFactory.getProvider(provider);
       if (storageProvider.createFolder) {
         await storageProvider.createFolder(folderPath);
       }
@@ -130,7 +136,8 @@ export class StorageService {
     }
 
     try {
-      const storageProvider = await this.cloudStorageFactory.getProvider(provider);
+      const storageProvider =
+        await this.cloudStorageFactory.getProvider(provider);
       await storageProvider.deleteFolder(folderPath);
     } catch (error) {
       this.logger.error(`Delete folder failed: ${error.message}`);

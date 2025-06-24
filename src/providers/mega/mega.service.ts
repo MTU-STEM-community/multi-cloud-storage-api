@@ -53,12 +53,15 @@ export class MegaService extends BaseCloudStorageProvider {
     });
   }
 
-  private async navigateToFolder(storage: megajs.Storage, folderPath?: string): Promise<any> {
+  private async navigateToFolder(
+    storage: megajs.Storage,
+    folderPath?: string,
+  ): Promise<any> {
     let targetFolder: any = storage.root;
 
     if (folderPath) {
       const normalizedPath = this.normalizeFolderPath(folderPath);
-      const folders = normalizedPath.split('/').filter(f => f);
+      const folders = normalizedPath.split('/').filter((f) => f);
 
       for (const folder of folders) {
         let found = false;
@@ -79,10 +82,13 @@ export class MegaService extends BaseCloudStorageProvider {
     return targetFolder;
   }
 
-  private async createFolderPath(storage: megajs.Storage, folderPath: string): Promise<any> {
+  private async createFolderPath(
+    storage: megajs.Storage,
+    folderPath: string,
+  ): Promise<any> {
     let targetFolder: any = storage.root;
     const normalizedPath = this.normalizeFolderPath(folderPath);
-    const folders = normalizedPath.split('/').filter(f => f);
+    const folders = normalizedPath.split('/').filter((f) => f);
 
     for (const folder of folders) {
       let found = false;

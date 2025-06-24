@@ -5,7 +5,7 @@ import { HttpException } from '@nestjs/common';
 
 describe('HealthCheckService', () => {
   let service: HealthCheckService;
-  let prismaService: PrismaService;
+  let _prismaService: PrismaService;
 
   const mockPrismaService = {
     $queryRaw: jest.fn(),
@@ -23,7 +23,7 @@ describe('HealthCheckService', () => {
     }).compile();
 
     service = module.get<HealthCheckService>(HealthCheckService);
-    prismaService = module.get<PrismaService>(PrismaService);
+    _prismaService = module.get<PrismaService>(PrismaService);
   });
 
   it('should be defined', () => {

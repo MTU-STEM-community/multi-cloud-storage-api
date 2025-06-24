@@ -48,8 +48,6 @@ export abstract class BaseCloudStorageProvider implements CloudStorageProvider {
   // Abstract method for getting provider-specific credentials for encryption
   protected abstract getCredentialsForEncryption(): Record<string, any>;
 
-
-
   /**
    * Common error handling wrapper for operations
    */
@@ -73,7 +71,8 @@ export abstract class BaseCloudStorageProvider implements CloudStorageProvider {
     storageName: string,
     folderPath?: string,
   ): Promise<string> {
-    const { encryptionSecret } = this.providerConfigService.getEncryptionConfig();
+    const { encryptionSecret } =
+      this.providerConfigService.getEncryptionConfig();
 
     this.validateConfiguration();
 
