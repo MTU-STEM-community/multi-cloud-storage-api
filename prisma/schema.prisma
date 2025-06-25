@@ -8,17 +8,31 @@ datasource db {
 }
 
 model File {
-    id            String         @id @default(cuid())
-    name          String
-    size          Int
-    type          String
-    url           String?
-    storageName   String?
-    path          String?
-    createdAt     DateTime       @default(now())
-    updatedAt     DateTime       @updatedAt
-    deletedAt     DateTime?      @default(now())
-    cloudStorages CloudStorage[]
+    id             String         @id @default(cuid())
+    name           String
+    size           Int
+    type           String
+    url            String?
+    storageName    String?
+    path           String?
+    description    String?
+    tags           String[]
+    metadata       Json           @default("{}")
+    isPublic       Boolean        @default(false)
+    downloadCount  Int            @default(0)
+    lastAccessedAt DateTime?
+    expiresAt      DateTime?
+    createdAt      DateTime       @default(now())
+    updatedAt      DateTime       @updatedAt
+    deletedAt      DateTime?      @default(now())
+    cloudStorages  CloudStorage[]
+    fileTags       FileTag[]
+
+    @@index([tags])
+    @@index([metadata])
+    @@index([name])
+    @@index([type])
+    @@index([createdAt])
 }
 
 model CloudStorage {
@@ -27,4 +41,14 @@ model CloudStorage {
     apiKey    String   @db.Text
     files     File[]
     createdAt DateTime @default(now())
+}
+
+model FileTag {
+    id          String   @id @default(cuid())
+    name        String   @unique
+    color       String?
+    description String?
+    files       File[]
+    createdAt   DateTime @default(now())
+    updatedAt   DateTime @updatedAt
 }
