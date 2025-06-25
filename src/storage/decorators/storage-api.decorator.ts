@@ -9,7 +9,6 @@ import {
 import {
   ApiStandardResponses,
   ApiProviderParam,
-  ApiFileIdParam,
   ApiFolderPathQuery,
   ApiFileUploadBody,
   ApiFolderPathBody,
@@ -107,17 +106,21 @@ export const ApiDownloadFile = () =>
   applyDecorators(
     ApiOperation({
       summary: 'Download file from cloud storage',
-      description: 'Download a file from the specified cloud storage provider',
+      description: 'Download a file using its database ID from the specified cloud storage provider',
     }),
     ApiProviderParam(),
-    ApiFileIdParam(),
-    ApiFolderPathQuery(false),
+    ApiParam({
+      name: 'fileId',
+      type: 'string',
+      description: 'Database file ID (UUID)',
+      example: 'clp1234567890abcdef',
+    }),
     ApiQuery({
       name: 'originalName',
       type: 'string',
-      description: 'Original filename for download',
+      description: 'Custom filename for download (optional)',
       required: false,
-      example: 'document.pdf',
+      example: 'my-document.pdf',
     }),
     ApiResponse({
       status: 200,
@@ -167,11 +170,15 @@ export const ApiDeleteFile = () =>
   applyDecorators(
     ApiOperation({
       summary: 'Delete file from cloud storage',
-      description: 'Delete a file from the specified cloud storage provider',
+      description: 'Delete a file using its database ID from the specified cloud storage provider',
     }),
     ApiProviderParam(),
-    ApiFileIdParam(),
-    ApiFolderPathQuery(false),
+    ApiParam({
+      name: 'fileId',
+      type: 'string',
+      description: 'Database file ID (UUID)',
+      example: 'clp1234567890abcdef',
+    }),
     ApiResponse({
       status: 200,
       description: 'File deleted successfully',

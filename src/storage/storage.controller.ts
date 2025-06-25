@@ -82,17 +82,17 @@ export class StorageController {
     @Param('fileId') fileId: string,
     @Res() response: Response,
     @Query('originalName') originalName?: string,
-    @Query('folderPath') folderPath?: string,
   ) {
+    const fileInfo = await this.storageService.getFileById(fileId);
+
     const fileData = await this.storageService.downloadFileFromProvider(
       provider,
       fileId,
-      folderPath,
     );
 
-    const contentType = FileValidationPipe.getMimeType(fileId);
+    const contentType = FileValidationPipe.getMimeType(fileInfo.name);
 
-    const downloadName = originalName || fileId;
+    const downloadName = originalName || fileInfo.name || fileId;
 
     response.setHeader('Content-Type', contentType);
     response.setHeader(
@@ -109,13 +109,8 @@ export class StorageController {
   async deleteFile(
     @Param('provider') provider: string,
     @Param('fileId') fileId: string,
-    @Query('folderPath') folderPath?: string,
   ) {
-    await this.storageService.deleteFileFromProvider(
-      provider,
-      fileId,
-      folderPath,
-    );
+    await this.storageService.deleteFileFromProvider(provider, fileId);
     return { message: `File ${fileId} successfully deleted from ${provider}` };
   }
 
@@ -144,8 +139,6 @@ export class StorageController {
     };
   }
 
-  // ===== ENHANCED FILE METADATA ENDPOINTS =====
-
   @Patch('files/:fileId/metadata')
   @ApiUpdateFileMetadata()
   async updateFileMetadata(
@@ -172,8 +165,6 @@ export class StorageController {
   async bulkDeleteFiles(@Body() bulkDeleteData: BulkDeleteDto) {
     return this.storageService.bulkDeleteFiles(bulkDeleteData);
   }
-
-  // ===== FILE TAG MANAGEMENT ENDPOINTS =====
 
   @Post('tags')
   @ApiCreateFileTag()

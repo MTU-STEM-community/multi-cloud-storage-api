@@ -29,11 +29,12 @@ export interface CloudStorageProvider {
 }
 
 export interface FileUploadResult {
+  fileId: string;           // Primary identifier for future operations
   url: string;
   originalName: string;
-  storageName: string;
-  fileId: string;
+  storageName: string;      // Cloud storage identifier (internal use)
   folderPath?: string;
+  message?: string;         // Success message with usage instructions
 }
 
 export interface FileListItem {

@@ -58,11 +58,12 @@ export class StorageService {
       );
 
       return {
+        fileId,
         url: uploadResult.url,
         originalName: file.originalname,
         storageName,
-        fileId,
         folderPath,
+        message: `File uploaded successfully. Use fileId '${fileId}' for future operations.`,
       };
     } catch (error) {
       this.logger.error(`Upload failed: ${error.message}`);
@@ -87,12 +88,35 @@ export class StorageService {
   async downloadFileFromProvider(
     provider: string,
     fileId: string,
-    folderPath?: string,
   ): Promise<Buffer> {
     try {
-      const storageProvider =
-        await this.cloudStorageFactory.getProvider(provider);
-      return await storageProvider.downloadFile(fileId, folderPath);
+      const file = await this.prisma.file.findUnique({
+        where: { id: fileId },
+        include: { cloudStorages: true },
+      });
+
+      if (!file) {
+        throw new BadRequestException('File not found');
+      }
+
+      const hasProvider = file.cloudStorages.some(
+        cs => cs.provider.toLowerCase() === provider.toLowerCase()
+      );
+
+      if (!hasProvider) {
+        throw new BadRequestException(`File not found in ${provider} storage`);
+      }
+
+      await this.prisma.file.update({
+        where: { id: fileId },
+        data: {
+          downloadCount: { increment: 1 },
+          lastAccessedAt: new Date(),
+        },
+      });
+
+      const storageProvider = await this.cloudStorageFactory.getProvider(provider);
+      return await storageProvider.downloadFile(file.storageName, file.path);
     } catch (error) {
       this.logger.error(`Download failed: ${error.message}`);
       throw error;
@@ -102,12 +126,44 @@ export class StorageService {
   async deleteFileFromProvider(
     provider: string,
     fileId: string,
-    folderPath?: string,
   ): Promise<void> {
     try {
-      const storageProvider =
-        await this.cloudStorageFactory.getProvider(provider);
-      return await storageProvider.deleteFile(fileId, folderPath);
+      const file = await this.prisma.file.findUnique({
+        where: { id: fileId },
+        include: { cloudStorages: true },
+      });
+
+      if (!file) {
+        throw new BadRequestException('File not found');
+      }
+
+      const cloudStorage = file.cloudStorages.find(
+        cs => cs.provider.toLowerCase() === provider.toLowerCase()
+      );
+
+      if (!cloudStorage) {
+        throw new BadRequestException(`File not found in ${provider} storage`);
+      }
+
+      const storageProvider = await this.cloudStorageFactory.getProvider(provider);
+      await storageProvider.deleteFile(file.storageName, file.path);
+
+      await this.prisma.cloudStorage.delete({
+        where: { id: cloudStorage.id },
+      });
+
+      const remainingStorages = await this.prisma.cloudStorage.count({
+        where: { files: { some: { id: fileId } } },
+      });
+
+      if (remainingStorages === 0) {
+        await this.prisma.file.update({
+          where: { id: fileId },
+          data: { deletedAt: new Date() },
+        });
+      }
+
+      this.logger.log(`File deleted successfully from ${provider}: ${file.name}`);
     } catch (error) {
       this.logger.error(`Delete failed: ${error.message}`);
       throw error;
@@ -156,7 +212,6 @@ export class StorageService {
     }
   }
 
-  // ===== ENHANCED FILE METADATA METHODS =====
 
   async updateFileMetadata(
     fileId: string,
@@ -203,7 +258,6 @@ export class StorageService {
         throw new BadRequestException('File not found');
       }
 
-      // Update last accessed time
       await this.prisma.file.update({
         where: { id: fileId },
         data: { lastAccessedAt: new Date() },
@@ -227,9 +281,8 @@ export class StorageService {
       } = searchParams;
       const skip = (page - 1) * limit;
 
-      // Build where clause
       const where: any = {
-        deletedAt: null, // Only non-deleted files
+        deletedAt: null,
       };
 
       if (filters.name) {
@@ -252,10 +305,8 @@ export class StorageService {
         where.isPublic = filters.isPublic;
       }
 
-      // Get total count
       const total = await this.prisma.file.count({ where });
 
-      // Get files with pagination
       const files = await this.prisma.file.findMany({
         where,
         include: {
@@ -292,7 +343,6 @@ export class StorageService {
 
     for (const fileId of bulkDeleteData.fileIds) {
       try {
-        // Get file info first
         const file = await this.prisma.file.findUnique({
           where: { id: fileId },
           include: { cloudStorages: true },
@@ -304,7 +354,6 @@ export class StorageService {
           continue;
         }
 
-        // Delete from cloud storage if provider specified
         if (bulkDeleteData.provider && file.storageName) {
           try {
             const storageProvider = await this.cloudStorageFactory.getProvider(
@@ -318,7 +367,6 @@ export class StorageService {
           }
         }
 
-        // Soft delete from database
         await this.prisma.file.update({
           where: { id: fileId },
           data: { deletedAt: new Date() },
@@ -334,7 +382,6 @@ export class StorageService {
     return result;
   }
 
-  // ===== FILE TAG MANAGEMENT =====
 
   async createFileTag(tagData: CreateFileTagDto) {
     try {
@@ -375,7 +422,6 @@ export class StorageService {
     }
   }
 
-  // ===== HELPER METHODS =====
 
   private mapToEnhancedFileInfo(file: any): EnhancedFileInfo {
     return {
