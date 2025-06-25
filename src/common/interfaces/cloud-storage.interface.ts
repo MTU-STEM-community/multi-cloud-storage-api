@@ -46,4 +46,59 @@ export interface FileListItem {
   originalName?: string;
   path?: string;
   isFolder?: boolean;
+  description?: string;
+  tags?: string[];
+  metadata?: Record<string, any>;
+  isPublic?: boolean;
+  downloadCount?: number;
+  lastAccessedAt?: string;
+  expiresAt?: string;
+}
+
+export interface EnhancedFileInfo {
+  id: string;
+  name: string;
+  size: number;
+  type: string;
+  url?: string;
+  storageName?: string;
+  path?: string;
+  description?: string;
+  tags: string[];
+  metadata: Record<string, any>;
+  isPublic: boolean;
+  downloadCount: number;
+  lastAccessedAt?: Date;
+  expiresAt?: Date;
+  createdAt: Date;
+  updatedAt: Date;
+  cloudStorages: Array<{
+    id: string;
+    provider: string;
+    createdAt: Date;
+  }>;
+  fileTags: Array<{
+    id: string;
+    name: string;
+    color?: string;
+    description?: string;
+  }>;
+}
+
+export interface FileSearchResult {
+  files: EnhancedFileInfo[];
+  total: number;
+  page: number;
+  limit: number;
+  totalPages: number;
+}
+
+export interface BulkOperationResult {
+  successful: number;
+  failed: number;
+  total: number;
+  errors: Array<{
+    fileId: string;
+    error: string;
+  }>;
 }
