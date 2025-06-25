@@ -10,6 +10,8 @@ import {
   HttpStatus,
   Query,
   Body,
+  Put,
+  Patch,
 } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { StorageService } from './storage.service';
@@ -23,7 +25,19 @@ import {
   ApiDeleteFile,
   ApiCreateFolder,
   ApiDeleteFolder,
+  ApiUpdateFileMetadata,
+  ApiGetFileById,
+  ApiSearchFiles,
+  ApiBulkDeleteFiles,
+  ApiCreateFileTag,
+  ApiGetAllFileTags,
 } from './decorators/storage-api.decorator';
+import {
+  UpdateFileMetadataDto,
+  FileSearchDto,
+  BulkDeleteDto,
+  CreateFileTagDto,
+} from './dto/file-metadata.dto';
 
 @ApiTags('storage')
 @Controller('storage')
@@ -128,5 +142,48 @@ export class StorageController {
     return {
       message: `Folder '${folderPath}' successfully deleted from ${provider}`,
     };
+  }
+
+  // ===== ENHANCED FILE METADATA ENDPOINTS =====
+
+  @Patch('files/:fileId/metadata')
+  @ApiUpdateFileMetadata()
+  async updateFileMetadata(
+    @Param('fileId') fileId: string,
+    @Body() updateData: UpdateFileMetadataDto,
+  ) {
+    return this.storageService.updateFileMetadata(fileId, updateData);
+  }
+
+  @Get('files/:fileId')
+  @ApiGetFileById()
+  async getFileById(@Param('fileId') fileId: string) {
+    return this.storageService.getFileById(fileId);
+  }
+
+  @Get('files/search')
+  @ApiSearchFiles()
+  async searchFiles(@Query() searchParams: FileSearchDto) {
+    return this.storageService.searchFiles(searchParams);
+  }
+
+  @Delete('files/bulk')
+  @ApiBulkDeleteFiles()
+  async bulkDeleteFiles(@Body() bulkDeleteData: BulkDeleteDto) {
+    return this.storageService.bulkDeleteFiles(bulkDeleteData);
+  }
+
+  // ===== FILE TAG MANAGEMENT ENDPOINTS =====
+
+  @Post('tags')
+  @ApiCreateFileTag()
+  async createFileTag(@Body() tagData: CreateFileTagDto) {
+    return this.storageService.createFileTag(tagData);
+  }
+
+  @Get('tags')
+  @ApiGetAllFileTags()
+  async getAllFileTags() {
+    return this.storageService.getAllFileTags();
   }
 }
