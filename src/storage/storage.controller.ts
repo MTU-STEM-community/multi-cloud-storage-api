@@ -4,14 +4,17 @@ import {
   Get,
   Param,
   UploadedFile,
+  UploadedFiles,
   UseInterceptors,
   Delete,
   Res,
   HttpStatus,
   Query,
   Body,
+  Put,
+  Patch,
 } from '@nestjs/common';
-import { FileInterceptor } from '@nestjs/platform-express';
+import { FileInterceptor, FilesInterceptor } from '@nestjs/platform-express';
 import { StorageService } from './storage.service';
 import { FileValidationPipe } from '../common/pipes/file-validation.pipe';
 import { Response } from 'express';
@@ -23,7 +26,25 @@ import {
   ApiDeleteFile,
   ApiCreateFolder,
   ApiDeleteFolder,
+  ApiUpdateFileMetadata,
+  ApiGetFileById,
+  ApiSearchFiles,
+  ApiBulkDeleteFiles,
+  ApiCreateFileTag,
+  ApiGetAllFileTags,
+  ApiBulkUploadFiles,
+  ApiMultiProviderUpload,
+  ApiMultiProviderDelete,
 } from './decorators/storage-api.decorator';
+import {
+  UpdateFileMetadataDto,
+  FileSearchDto,
+  BulkDeleteDto,
+  CreateFileTagDto,
+  MultiProviderUploadDto,
+  MultiProviderDeleteDto,
+  BulkUploadMetadataDto,
+} from './dto/file-metadata.dto';
 
 @ApiTags('storage')
 @Controller('storage')
@@ -68,17 +89,17 @@ export class StorageController {
     @Param('fileId') fileId: string,
     @Res() response: Response,
     @Query('originalName') originalName?: string,
-    @Query('folderPath') folderPath?: string,
   ) {
+    const fileInfo = await this.storageService.getFileById(fileId);
+
     const fileData = await this.storageService.downloadFileFromProvider(
       provider,
       fileId,
-      folderPath,
     );
 
-    const contentType = FileValidationPipe.getMimeType(fileId);
+    const contentType = FileValidationPipe.getMimeType(fileInfo.name);
 
-    const downloadName = originalName || fileId;
+    const downloadName = originalName || fileInfo.name || fileId;
 
     response.setHeader('Content-Type', contentType);
     response.setHeader(
@@ -95,13 +116,8 @@ export class StorageController {
   async deleteFile(
     @Param('provider') provider: string,
     @Param('fileId') fileId: string,
-    @Query('folderPath') folderPath?: string,
   ) {
-    await this.storageService.deleteFileFromProvider(
-      provider,
-      fileId,
-      folderPath,
-    );
+    await this.storageService.deleteFileFromProvider(provider, fileId);
     return { message: `File ${fileId} successfully deleted from ${provider}` };
   }
 
@@ -128,5 +144,74 @@ export class StorageController {
     return {
       message: `Folder '${folderPath}' successfully deleted from ${provider}`,
     };
+  }
+
+  @Patch('files/:fileId/metadata')
+  @ApiUpdateFileMetadata()
+  async updateFileMetadata(
+    @Param('fileId') fileId: string,
+    @Body() updateData: UpdateFileMetadataDto,
+  ) {
+    return this.storageService.updateFileMetadata(fileId, updateData);
+  }
+
+  @Get('files/:fileId')
+  @ApiGetFileById()
+  async getFileById(@Param('fileId') fileId: string) {
+    return this.storageService.getFileById(fileId);
+  }
+
+  @Get('files/search')
+  @ApiSearchFiles()
+  async searchFiles(@Query() searchParams: FileSearchDto) {
+    return this.storageService.searchFiles(searchParams);
+  }
+
+  @Delete('files/bulk')
+  @ApiBulkDeleteFiles()
+  async bulkDeleteFiles(@Body() bulkDeleteData: BulkDeleteDto) {
+    return this.storageService.bulkDeleteFiles(bulkDeleteData);
+  }
+
+  @Post('tags')
+  @ApiCreateFileTag()
+  async createFileTag(@Body() tagData: CreateFileTagDto) {
+    return this.storageService.createFileTag(tagData);
+  }
+
+  @Get('tags')
+  @ApiGetAllFileTags()
+  async getAllFileTags() {
+    return this.storageService.getAllFileTags();
+  }
+
+  // ===== BULK AND MULTI-PROVIDER ENDPOINTS =====
+
+  @Post('bulk-upload')
+  @ApiBulkUploadFiles()
+  @UseInterceptors(FilesInterceptor('files', 20)) // Max 20 files
+  async bulkUploadFiles(
+    @UploadedFiles() files: Express.Multer.File[],
+    @Body() metadata: BulkUploadMetadataDto,
+  ) {
+    return this.storageService.bulkUploadFiles(files, metadata);
+  }
+
+  @Post('multi-provider-upload')
+  @ApiMultiProviderUpload()
+  @UseInterceptors(FileInterceptor('file'))
+  async uploadFileToMultipleProviders(
+    @UploadedFile(FileValidationPipe) file: Express.Multer.File,
+    @Body() uploadData: MultiProviderUploadDto,
+  ) {
+    return this.storageService.uploadFileToMultipleProviders(file, uploadData);
+  }
+
+  @Delete('multi-provider-delete')
+  @ApiMultiProviderDelete()
+  async deleteFileFromMultipleProviders(
+    @Body() deleteData: MultiProviderDeleteDto,
+  ) {
+    return this.storageService.deleteFileFromMultipleProviders(deleteData);
   }
 }
