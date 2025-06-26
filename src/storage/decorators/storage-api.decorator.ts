@@ -495,3 +495,111 @@ export const ApiGetAllFileTags = () =>
     }),
     ApiStandardResponses(),
   );
+
+// ===== BULK AND MULTI-PROVIDER DECORATORS =====
+
+export const ApiBulkUploadFiles = () =>
+  applyDecorators(
+    ApiOperation({
+      summary: 'Bulk upload multiple files',
+      description: 'Upload multiple files to a single cloud storage provider with optional metadata',
+    }),
+    ApiConsumes('multipart/form-data'),
+    ApiResponse({
+      status: 201,
+      description: 'Bulk upload completed',
+      schema: {
+        type: 'object',
+        properties: {
+          successful: { type: 'number', example: 8 },
+          failed: { type: 'number', example: 2 },
+          total: { type: 'number', example: 10 },
+          files: {
+            type: 'array',
+            items: {
+              type: 'object',
+              properties: {
+                originalName: { type: 'string', example: 'document1.pdf' },
+                fileId: { type: 'string', example: 'clp1234567890abcdef' },
+                success: { type: 'boolean', example: true },
+                error: { type: 'string', example: 'Upload failed' },
+              },
+            },
+          },
+        },
+      },
+    }),
+    ApiStandardResponses(),
+  );
+
+export const ApiMultiProviderUpload = () =>
+  applyDecorators(
+    ApiOperation({
+      summary: 'Upload file to multiple cloud providers',
+      description: 'Upload a single file to multiple cloud storage providers simultaneously',
+    }),
+    ApiConsumes('multipart/form-data'),
+    ApiResponse({
+      status: 201,
+      description: 'Multi-provider upload completed',
+      schema: {
+        type: 'object',
+        properties: {
+          fileId: { type: 'string', example: 'clp1234567890abcdef' },
+          originalName: { type: 'string', example: 'document.pdf' },
+          folderPath: { type: 'string', example: 'projects/q4' },
+          successful: { type: 'number', example: 2 },
+          failed: { type: 'number', example: 1 },
+          total: { type: 'number', example: 3 },
+          results: {
+            type: 'array',
+            items: {
+              type: 'object',
+              properties: {
+                provider: { type: 'string', example: 'dropbox' },
+                success: { type: 'boolean', example: true },
+                url: { type: 'string', example: 'https://dropbox.com/s/abc123/document.pdf' },
+                storageName: { type: 'string', example: '1640995200000_document.pdf' },
+                error: { type: 'string', example: 'Provider unavailable' },
+              },
+            },
+          },
+        },
+      },
+    }),
+    ApiStandardResponses(),
+  );
+
+export const ApiMultiProviderDelete = () =>
+  applyDecorators(
+    ApiOperation({
+      summary: 'Delete file from multiple cloud providers',
+      description: 'Delete a file from multiple cloud storage providers simultaneously',
+    }),
+    ApiResponse({
+      status: 200,
+      description: 'Multi-provider delete completed',
+      schema: {
+        type: 'object',
+        properties: {
+          fileId: { type: 'string', example: 'clp1234567890abcdef' },
+          successful: { type: 'number', example: 2 },
+          failed: { type: 'number', example: 0 },
+          total: { type: 'number', example: 2 },
+          fileDeleted: { type: 'boolean', example: true },
+          results: {
+            type: 'array',
+            items: {
+              type: 'object',
+              properties: {
+                provider: { type: 'string', example: 'dropbox' },
+                success: { type: 'boolean', example: true },
+                error: { type: 'string', example: 'File not found in provider' },
+              },
+            },
+          },
+        },
+      },
+    }),
+    ApiStandardResponses(),
+  );

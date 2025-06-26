@@ -4,6 +4,7 @@ import {
   Get,
   Param,
   UploadedFile,
+  UploadedFiles,
   UseInterceptors,
   Delete,
   Res,
@@ -13,7 +14,7 @@ import {
   Put,
   Patch,
 } from '@nestjs/common';
-import { FileInterceptor } from '@nestjs/platform-express';
+import { FileInterceptor, FilesInterceptor } from '@nestjs/platform-express';
 import { StorageService } from './storage.service';
 import { FileValidationPipe } from '../common/pipes/file-validation.pipe';
 import { Response } from 'express';
@@ -31,12 +32,18 @@ import {
   ApiBulkDeleteFiles,
   ApiCreateFileTag,
   ApiGetAllFileTags,
+  ApiBulkUploadFiles,
+  ApiMultiProviderUpload,
+  ApiMultiProviderDelete,
 } from './decorators/storage-api.decorator';
 import {
   UpdateFileMetadataDto,
   FileSearchDto,
   BulkDeleteDto,
   CreateFileTagDto,
+  MultiProviderUploadDto,
+  MultiProviderDeleteDto,
+  BulkUploadMetadataDto,
 } from './dto/file-metadata.dto';
 
 @ApiTags('storage')
@@ -176,5 +183,35 @@ export class StorageController {
   @ApiGetAllFileTags()
   async getAllFileTags() {
     return this.storageService.getAllFileTags();
+  }
+
+  // ===== BULK AND MULTI-PROVIDER ENDPOINTS =====
+
+  @Post('bulk-upload')
+  @ApiBulkUploadFiles()
+  @UseInterceptors(FilesInterceptor('files', 20)) // Max 20 files
+  async bulkUploadFiles(
+    @UploadedFiles() files: Express.Multer.File[],
+    @Body() metadata: BulkUploadMetadataDto,
+  ) {
+    return this.storageService.bulkUploadFiles(files, metadata);
+  }
+
+  @Post('multi-provider-upload')
+  @ApiMultiProviderUpload()
+  @UseInterceptors(FileInterceptor('file'))
+  async uploadFileToMultipleProviders(
+    @UploadedFile(FileValidationPipe) file: Express.Multer.File,
+    @Body() uploadData: MultiProviderUploadDto,
+  ) {
+    return this.storageService.uploadFileToMultipleProviders(file, uploadData);
+  }
+
+  @Delete('multi-provider-delete')
+  @ApiMultiProviderDelete()
+  async deleteFileFromMultipleProviders(
+    @Body() deleteData: MultiProviderDeleteDto,
+  ) {
+    return this.storageService.deleteFileFromMultipleProviders(deleteData);
   }
 }

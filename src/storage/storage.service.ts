@@ -1,18 +1,26 @@
 import { Injectable, Logger, BadRequestException } from '@nestjs/common';
 import { CloudStorageFactoryService } from '../common/providers/cloud-storage-factory.service';
 import { PrismaService } from '../prisma/prisma.service';
+import { EncryptionService } from '../utils/encryption.util';
+import { ConfigService } from '@nestjs/config';
 import {
   FileUploadResult,
   FileListItem,
   EnhancedFileInfo,
   FileSearchResult,
   BulkOperationResult,
+  MultiProviderUploadResult,
+  BulkUploadResult,
+  MultiProviderDeleteResult,
 } from '../common/interfaces/cloud-storage.interface';
 import {
   UpdateFileMetadataDto,
   FileSearchDto,
   BulkDeleteDto,
   CreateFileTagDto,
+  MultiProviderUploadDto,
+  MultiProviderDeleteDto,
+  BulkUploadMetadataDto,
 } from './dto/file-metadata.dto';
 
 @Injectable()
@@ -22,6 +30,8 @@ export class StorageService {
   constructor(
     private readonly cloudStorageFactory: CloudStorageFactoryService,
     private readonly prisma: PrismaService,
+    private readonly encryptionService: EncryptionService,
+    private readonly configService: ConfigService,
   ) {}
 
   async uploadFileToProvider(
@@ -422,6 +432,244 @@ export class StorageService {
     }
   }
 
+  // ===== BULK UPLOAD METHODS =====
+
+  async bulkUploadFiles(
+    files: Express.Multer.File[],
+    metadata: BulkUploadMetadataDto,
+  ): Promise<BulkUploadResult> {
+    const result: BulkUploadResult = {
+      successful: 0,
+      failed: 0,
+      total: files.length,
+      files: [],
+    };
+
+    const provider = metadata.provider || 'dropbox'; // Default provider
+
+    for (const file of files) {
+      try {
+        const uploadResult = await this.uploadFileToProvider(
+          file,
+          provider,
+          metadata.folderPath,
+        );
+
+        // Add default metadata and tags
+        if (metadata.defaultTags || metadata.defaultMetadata) {
+          await this.updateFileMetadata(uploadResult.fileId, {
+            tags: metadata.defaultTags,
+            metadata: metadata.defaultMetadata,
+          });
+        }
+
+        result.files.push({
+          originalName: file.originalname,
+          fileId: uploadResult.fileId,
+          success: true,
+        });
+        result.successful++;
+      } catch (error) {
+        result.files.push({
+          originalName: file.originalname,
+          success: false,
+          error: error.message,
+        });
+        result.failed++;
+      }
+    }
+
+    return result;
+  }
+
+  // ===== MULTI-PROVIDER METHODS =====
+
+  async uploadFileToMultipleProviders(
+    file: Express.Multer.File,
+    uploadData: MultiProviderUploadDto,
+  ): Promise<MultiProviderUploadResult> {
+    const result: MultiProviderUploadResult = {
+      fileId: '',
+      originalName: file.originalname,
+      folderPath: uploadData.folderPath,
+      results: [],
+      successful: 0,
+      failed: 0,
+      total: uploadData.providers.length,
+    };
+
+    let firstUploadResult: FileUploadResult | null = null;
+
+    // Upload to each provider
+    for (const provider of uploadData.providers) {
+      try {
+        if (!firstUploadResult) {
+          // First upload - creates the file record
+          firstUploadResult = await this.uploadFileToProvider(
+            file,
+            provider,
+            uploadData.folderPath,
+          );
+          result.fileId = firstUploadResult.fileId;
+
+          result.results.push({
+            provider,
+            success: true,
+            url: firstUploadResult.url,
+            storageName: firstUploadResult.storageName,
+          });
+        } else {
+          // Subsequent uploads - link to existing file record
+          const storageProvider = await this.cloudStorageFactory.getProvider(provider);
+          const storageName = storageProvider.generateStorageName(file.originalname);
+
+          const providerUploadResult = await storageProvider.uploadFile(
+            file,
+            storageName,
+            uploadData.folderPath,
+          );
+
+          // Create cloud storage record linked to existing file
+          // We'll use the saveFileRecord method but update the file connection afterward
+          const tempFileId = await storageProvider.saveFileRecord(
+            file,
+            providerUploadResult.url,
+            storageName,
+            uploadData.folderPath,
+          );
+
+          // Now we need to link this cloud storage to the existing file instead
+          // First, get the cloud storage record that was just created
+          const tempFile = await this.prisma.file.findUnique({
+            where: { id: tempFileId },
+            include: { cloudStorages: true },
+          });
+
+          if (tempFile && tempFile.cloudStorages.length > 0) {
+            const cloudStorage = tempFile.cloudStorages[0];
+
+            // Connect the cloud storage to the main file
+            await this.prisma.cloudStorage.update({
+              where: { id: cloudStorage.id },
+              data: {
+                files: {
+                  disconnect: { id: tempFileId },
+                  connect: { id: result.fileId },
+                },
+              },
+            });
+
+            // Delete the temporary file record
+            await this.prisma.file.delete({
+              where: { id: tempFileId },
+            });
+          }
+
+          result.results.push({
+            provider,
+            success: true,
+            url: providerUploadResult.url,
+            storageName: storageName,
+          });
+        }
+
+        result.successful++;
+      } catch (error) {
+        result.results.push({
+          provider,
+          success: false,
+          error: error.message,
+        });
+        result.failed++;
+      }
+    }
+
+    // Update file metadata if provided
+    if (result.fileId && (uploadData.description || uploadData.tags || uploadData.metadata)) {
+      try {
+        await this.updateFileMetadata(result.fileId, {
+          description: uploadData.description,
+          tags: uploadData.tags,
+          metadata: uploadData.metadata,
+        });
+      } catch (error) {
+        this.logger.warn(`Failed to update metadata: ${error.message}`);
+      }
+    }
+
+    return result;
+  }
+
+  async deleteFileFromMultipleProviders(
+    deleteData: MultiProviderDeleteDto,
+  ): Promise<MultiProviderDeleteResult> {
+    const result: MultiProviderDeleteResult = {
+      fileId: deleteData.fileId,
+      results: [],
+      successful: 0,
+      failed: 0,
+      total: deleteData.providers.length,
+      fileDeleted: false,
+    };
+
+    // Get file record
+    const file = await this.prisma.file.findUnique({
+      where: { id: deleteData.fileId },
+      include: { cloudStorages: true },
+    });
+
+    if (!file) {
+      throw new BadRequestException('File not found');
+    }
+
+    // Delete from each specified provider
+    for (const provider of deleteData.providers) {
+      try {
+        const cloudStorage = file.cloudStorages.find(
+          cs => cs.provider.toLowerCase() === provider.toLowerCase()
+        );
+
+        if (!cloudStorage) {
+          result.results.push({
+            provider,
+            success: false,
+            error: 'File not found in this provider',
+          });
+          result.failed++;
+          continue;
+        }
+
+        // Delete from cloud storage
+        await this.deleteFileFromProvider(provider, deleteData.fileId);
+
+        result.results.push({
+          provider,
+          success: true,
+        });
+        result.successful++;
+      } catch (error) {
+        result.results.push({
+          provider,
+          success: false,
+          error: error.message,
+        });
+        result.failed++;
+      }
+    }
+
+    // Check if file should be completely deleted
+    const remainingStorages = await this.prisma.cloudStorage.count({
+      where: { files: { some: { id: deleteData.fileId } } },
+    });
+
+    if (remainingStorages === 0) {
+      result.fileDeleted = true;
+    }
+
+    return result;
+  }
+
+  // ===== HELPER METHODS =====
 
   private mapToEnhancedFileInfo(file: any): EnhancedFileInfo {
     return {

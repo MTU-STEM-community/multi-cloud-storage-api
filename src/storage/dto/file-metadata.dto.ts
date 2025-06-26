@@ -187,3 +187,103 @@ export class CreateFileTagDto {
   @IsString()
   description?: string;
 }
+
+export class MultiProviderUploadDto {
+  @ApiProperty({
+    description: 'Array of cloud storage providers to upload to',
+    example: ['dropbox', 'google-cloud', 'onedrive'],
+    type: [String],
+  })
+  @IsArray()
+  @IsString({ each: true })
+  providers: string[];
+
+  @ApiPropertyOptional({
+    description: 'Folder path for the file',
+    example: 'documents/projects',
+  })
+  @IsOptional()
+  @IsString()
+  folderPath?: string;
+
+  @ApiPropertyOptional({
+    description: 'File description',
+    example: 'Important project document',
+  })
+  @IsOptional()
+  @IsString()
+  description?: string;
+
+  @ApiPropertyOptional({
+    description: 'File tags',
+    example: ['project', 'important'],
+    type: [String],
+  })
+  @IsOptional()
+  @IsArray()
+  @IsString({ each: true })
+  tags?: string[];
+
+  @ApiPropertyOptional({
+    description: 'Custom metadata',
+    example: { department: 'engineering', priority: 'high' },
+  })
+  @IsOptional()
+  @IsObject()
+  metadata?: Record<string, any>;
+}
+
+export class MultiProviderDeleteDto {
+  @ApiProperty({
+    description: 'File ID to delete',
+    example: 'clp1234567890abcdef',
+  })
+  @IsString()
+  fileId: string;
+
+  @ApiProperty({
+    description: 'Array of cloud storage providers to delete from',
+    example: ['dropbox', 'google-cloud'],
+    type: [String],
+  })
+  @IsArray()
+  @IsString({ each: true })
+  providers: string[];
+}
+
+export class BulkUploadMetadataDto {
+  @ApiPropertyOptional({
+    description: 'Folder path for all files',
+    example: 'documents/projects',
+  })
+  @IsOptional()
+  @IsString()
+  folderPath?: string;
+
+  @ApiPropertyOptional({
+    description: 'Cloud storage provider',
+    example: 'dropbox',
+    enum: ['google-cloud', 'dropbox', 'mega', 'google-drive', 'backblaze', 'onedrive'],
+  })
+  @IsOptional()
+  @IsString()
+  provider?: string;
+
+  @ApiPropertyOptional({
+    description: 'Default tags for all files',
+    example: ['bulk-upload', 'project'],
+    type: [String],
+  })
+  @IsOptional()
+  @IsArray()
+  @IsString({ each: true })
+  defaultTags?: string[];
+
+  @ApiPropertyOptional({
+    description: 'Default metadata for all files',
+    example: { uploadBatch: 'batch-001', department: 'engineering' },
+  })
+  @IsOptional()
+  @IsObject()
+  defaultMetadata?: Record<string, any>;
+}
