@@ -3,11 +3,7 @@ import { CloudStorageFactoryService } from '../common/providers/cloud-storage-fa
 import { PrismaService } from '../prisma/prisma.service';
 import { EncryptionService } from '../utils/encryption.util';
 import { ConfigService } from '@nestjs/config';
-import {
-  CleanupService,
-  RetryOperation,
-  RetryResult,
-} from './services/cleanup.service';
+import { CleanupService } from './services/cleanup.service';
 import {
   FileUploadResult,
   FileListItem,
@@ -543,7 +539,6 @@ export class StorageService {
     };
 
     let firstUploadResult: FileUploadResult | null = null;
-    const uploadedProviders: string[] = [];
 
     for (const provider of uploadData.providers) {
       try {

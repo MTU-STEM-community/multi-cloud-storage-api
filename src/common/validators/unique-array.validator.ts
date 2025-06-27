@@ -12,7 +12,7 @@ export function IsUniqueArray(validationOptions?: ValidationOptions) {
       propertyName: propertyName,
       options: validationOptions,
       validator: {
-        validate(value: any, args: ValidationArguments) {
+        validate(value: any) {
           if (!Array.isArray(value)) {
             return false;
           }

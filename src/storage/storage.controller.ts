@@ -11,7 +11,6 @@ import {
   HttpStatus,
   Query,
   Body,
-  Put,
   Patch,
   BadRequestException,
 } from '@nestjs/common';
