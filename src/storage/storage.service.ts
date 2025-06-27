@@ -4,6 +4,11 @@ import { PrismaService } from '../prisma/prisma.service';
 import { EncryptionService } from '../utils/encryption.util';
 import { ConfigService } from '@nestjs/config';
 import {
+  CleanupService,
+  RetryOperation,
+  RetryResult,
+} from './services/cleanup.service';
+import {
   FileUploadResult,
   FileListItem,
   EnhancedFileInfo,
@@ -32,6 +37,7 @@ export class StorageService {
     private readonly prisma: PrismaService,
     private readonly encryptionService: EncryptionService,
     private readonly configService: ConfigService,
+    private readonly cleanupService: CleanupService,
   ) {}
 
   async uploadFileToProvider(
@@ -110,7 +116,7 @@ export class StorageService {
       }
 
       const hasProvider = file.cloudStorages.some(
-        cs => cs.provider.toLowerCase() === provider.toLowerCase()
+        (cs) => cs.provider.toLowerCase() === provider.toLowerCase(),
       );
 
       if (!hasProvider) {
@@ -125,7 +131,8 @@ export class StorageService {
         },
       });
 
-      const storageProvider = await this.cloudStorageFactory.getProvider(provider);
+      const storageProvider =
+        await this.cloudStorageFactory.getProvider(provider);
       return await storageProvider.downloadFile(file.storageName, file.path);
     } catch (error) {
       this.logger.error(`Download failed: ${error.message}`);
@@ -148,14 +155,15 @@ export class StorageService {
       }
 
       const cloudStorage = file.cloudStorages.find(
-        cs => cs.provider.toLowerCase() === provider.toLowerCase()
+        (cs) => cs.provider.toLowerCase() === provider.toLowerCase(),
       );
 
       if (!cloudStorage) {
         throw new BadRequestException(`File not found in ${provider} storage`);
       }
 
-      const storageProvider = await this.cloudStorageFactory.getProvider(provider);
+      const storageProvider =
+        await this.cloudStorageFactory.getProvider(provider);
       await storageProvider.deleteFile(file.storageName, file.path);
 
       await this.prisma.cloudStorage.delete({
@@ -173,7 +181,9 @@ export class StorageService {
         });
       }
 
-      this.logger.log(`File deleted successfully from ${provider}: ${file.name}`);
+      this.logger.log(
+        `File deleted successfully from ${provider}: ${file.name}`,
+      );
     } catch (error) {
       this.logger.error(`Delete failed: ${error.message}`);
       throw error;
@@ -221,7 +231,6 @@ export class StorageService {
       throw error;
     }
   }
-
 
   async updateFileMetadata(
     fileId: string,
@@ -392,7 +401,6 @@ export class StorageService {
     return result;
   }
 
-
   async createFileTag(tagData: CreateFileTagDto) {
     try {
       return await this.prisma.fileTag.create({
@@ -432,20 +440,42 @@ export class StorageService {
     }
   }
 
-  // ===== BULK UPLOAD METHODS =====
-
   async bulkUploadFiles(
     files: Express.Multer.File[],
     metadata: BulkUploadMetadataDto,
   ): Promise<BulkUploadResult> {
+    if (!files || files.length === 0) {
+      throw new BadRequestException('No files provided for bulk upload');
+    }
+
+    if (files.length > 20) {
+      throw new BadRequestException('Maximum 20 files allowed per bulk upload');
+    }
+
+    const totalSize = files.reduce((sum, file) => sum + file.size, 0);
+    const maxTotalSize = 100 * 1024 * 1024;
+    if (totalSize > maxTotalSize) {
+      throw new BadRequestException(
+        `Total file size (${Math.round(totalSize / (1024 * 1024))}MB) exceeds maximum allowed (100MB)`,
+      );
+    }
+
+    const provider = metadata.provider || 'dropbox';
+
+    try {
+      await this.cloudStorageFactory.getProvider(provider);
+    } catch (error) {
+      throw new BadRequestException(
+        `Invalid provider '${provider}': ${error.message}`,
+      );
+    }
+
     const result: BulkUploadResult = {
       successful: 0,
       failed: 0,
       total: files.length,
       files: [],
     };
-
-    const provider = metadata.provider || 'dropbox'; // Default provider
 
     for (const file of files) {
       try {
@@ -454,8 +484,6 @@ export class StorageService {
           provider,
           metadata.folderPath,
         );
-
-        // Add default metadata and tags
         if (metadata.defaultTags || metadata.defaultMetadata) {
           await this.updateFileMetadata(uploadResult.fileId, {
             tags: metadata.defaultTags,
@@ -482,12 +510,28 @@ export class StorageService {
     return result;
   }
 
-  // ===== MULTI-PROVIDER METHODS =====
-
   async uploadFileToMultipleProviders(
     file: Express.Multer.File,
     uploadData: MultiProviderUploadDto,
   ): Promise<MultiProviderUploadResult> {
+    if (!file || !file.buffer) {
+      throw new BadRequestException('Invalid file data');
+    }
+
+    if (!uploadData.providers || uploadData.providers.length === 0) {
+      throw new BadRequestException('At least one provider must be specified');
+    }
+
+    for (const provider of uploadData.providers) {
+      try {
+        await this.cloudStorageFactory.getProvider(provider);
+      } catch (error) {
+        throw new BadRequestException(
+          `Invalid provider '${provider}': ${error.message}`,
+        );
+      }
+    }
+
     const result: MultiProviderUploadResult = {
       fileId: '',
       originalName: file.originalname,
@@ -499,12 +543,11 @@ export class StorageService {
     };
 
     let firstUploadResult: FileUploadResult | null = null;
+    const uploadedProviders: string[] = [];
 
-    // Upload to each provider
     for (const provider of uploadData.providers) {
       try {
         if (!firstUploadResult) {
-          // First upload - creates the file record
           firstUploadResult = await this.uploadFileToProvider(
             file,
             provider,
@@ -519,9 +562,11 @@ export class StorageService {
             storageName: firstUploadResult.storageName,
           });
         } else {
-          // Subsequent uploads - link to existing file record
-          const storageProvider = await this.cloudStorageFactory.getProvider(provider);
-          const storageName = storageProvider.generateStorageName(file.originalname);
+          const storageProvider =
+            await this.cloudStorageFactory.getProvider(provider);
+          const storageName = storageProvider.generateStorageName(
+            file.originalname,
+          );
 
           const providerUploadResult = await storageProvider.uploadFile(
             file,
@@ -529,8 +574,6 @@ export class StorageService {
             uploadData.folderPath,
           );
 
-          // Create cloud storage record linked to existing file
-          // We'll use the saveFileRecord method but update the file connection afterward
           const tempFileId = await storageProvider.saveFileRecord(
             file,
             providerUploadResult.url,
@@ -538,8 +581,6 @@ export class StorageService {
             uploadData.folderPath,
           );
 
-          // Now we need to link this cloud storage to the existing file instead
-          // First, get the cloud storage record that was just created
           const tempFile = await this.prisma.file.findUnique({
             where: { id: tempFileId },
             include: { cloudStorages: true },
@@ -548,7 +589,6 @@ export class StorageService {
           if (tempFile && tempFile.cloudStorages.length > 0) {
             const cloudStorage = tempFile.cloudStorages[0];
 
-            // Connect the cloud storage to the main file
             await this.prisma.cloudStorage.update({
               where: { id: cloudStorage.id },
               data: {
@@ -559,7 +599,6 @@ export class StorageService {
               },
             });
 
-            // Delete the temporary file record
             await this.prisma.file.delete({
               where: { id: tempFileId },
             });
@@ -584,8 +623,10 @@ export class StorageService {
       }
     }
 
-    // Update file metadata if provided
-    if (result.fileId && (uploadData.description || uploadData.tags || uploadData.metadata)) {
+    if (
+      result.fileId &&
+      (uploadData.description || uploadData.tags || uploadData.metadata)
+    ) {
       try {
         await this.updateFileMetadata(result.fileId, {
           description: uploadData.description,
@@ -612,7 +653,6 @@ export class StorageService {
       fileDeleted: false,
     };
 
-    // Get file record
     const file = await this.prisma.file.findUnique({
       where: { id: deleteData.fileId },
       include: { cloudStorages: true },
@@ -622,11 +662,10 @@ export class StorageService {
       throw new BadRequestException('File not found');
     }
 
-    // Delete from each specified provider
     for (const provider of deleteData.providers) {
       try {
         const cloudStorage = file.cloudStorages.find(
-          cs => cs.provider.toLowerCase() === provider.toLowerCase()
+          (cs) => cs.provider.toLowerCase() === provider.toLowerCase(),
         );
 
         if (!cloudStorage) {
@@ -639,7 +678,6 @@ export class StorageService {
           continue;
         }
 
-        // Delete from cloud storage
         await this.deleteFileFromProvider(provider, deleteData.fileId);
 
         result.results.push({
@@ -657,7 +695,6 @@ export class StorageService {
       }
     }
 
-    // Check if file should be completely deleted
     const remainingStorages = await this.prisma.cloudStorage.count({
       where: { files: { some: { id: deleteData.fileId } } },
     });
@@ -668,8 +705,6 @@ export class StorageService {
 
     return result;
   }
-
-  // ===== HELPER METHODS =====
 
   private mapToEnhancedFileInfo(file: any): EnhancedFileInfo {
     return {
