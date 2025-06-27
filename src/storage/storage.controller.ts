@@ -13,6 +13,7 @@ import {
   Body,
   Put,
   Patch,
+  BadRequestException,
 } from '@nestjs/common';
 import { FileInterceptor, FilesInterceptor } from '@nestjs/platform-express';
 import { StorageService } from './storage.service';
@@ -185,7 +186,6 @@ export class StorageController {
     return this.storageService.getAllFileTags();
   }
 
-  // ===== BULK AND MULTI-PROVIDER ENDPOINTS =====
 
   @Post('bulk-upload')
   @ApiBulkUploadFiles()
@@ -194,6 +194,18 @@ export class StorageController {
     @UploadedFiles() files: Express.Multer.File[],
     @Body() metadata: BulkUploadMetadataDto,
   ) {
+    if (!files || files.length === 0) {
+      throw new BadRequestException('No files uploaded');
+    }
+
+    for (const file of files) {
+      if (!file || !file.buffer) {
+        throw new BadRequestException(
+          `Invalid file data for file: ${file?.originalname || 'unknown'}`,
+        );
+      }
+    }
+
     return this.storageService.bulkUploadFiles(files, metadata);
   }
 

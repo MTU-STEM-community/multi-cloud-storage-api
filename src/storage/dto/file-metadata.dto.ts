@@ -7,8 +7,14 @@ import {
   IsDateString,
   IsInt,
   Min,
+  ArrayMinSize,
+  ArrayMaxSize,
+  Length,
+  Matches,
+  IsIn,
 } from 'class-validator';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
+import { IsUniqueArray } from '../../common/validators/unique-array.validator';
 
 export class UpdateFileMetadataDto {
   @ApiPropertyOptional({
@@ -195,7 +201,25 @@ export class MultiProviderUploadDto {
     type: [String],
   })
   @IsArray()
+  @ArrayMinSize(1, { message: 'At least one provider must be specified' })
+  @ArrayMaxSize(6, { message: 'Maximum 6 providers allowed' })
   @IsString({ each: true })
+  @IsIn(
+    [
+      'google-cloud',
+      'dropbox',
+      'mega',
+      'google-drive',
+      'backblaze',
+      'onedrive',
+    ],
+    {
+      each: true,
+      message:
+        'Invalid provider. Supported providers: google-cloud, dropbox, mega, google-drive, backblaze, onedrive',
+    },
+  )
+  @IsUniqueArray({ message: 'Duplicate providers are not allowed' })
   providers: string[];
 
   @ApiPropertyOptional({
@@ -204,6 +228,12 @@ export class MultiProviderUploadDto {
   })
   @IsOptional()
   @IsString()
+  @Length(1, 255, {
+    message: 'Folder path must be between 1 and 255 characters',
+  })
+  @Matches(/^[a-zA-Z0-9\-_\/\s]+$/, {
+    message: 'Folder path contains invalid characters',
+  })
   folderPath?: string;
 
   @ApiPropertyOptional({
@@ -212,6 +242,9 @@ export class MultiProviderUploadDto {
   })
   @IsOptional()
   @IsString()
+  @Length(1, 500, {
+    message: 'Description must be between 1 and 500 characters',
+  })
   description?: string;
 
   @ApiPropertyOptional({
@@ -221,7 +254,12 @@ export class MultiProviderUploadDto {
   })
   @IsOptional()
   @IsArray()
+  @ArrayMaxSize(10, { message: 'Maximum 10 tags allowed' })
   @IsString({ each: true })
+  @Length(1, 50, {
+    each: true,
+    message: 'Each tag must be between 1 and 50 characters',
+  })
   tags?: string[];
 
   @ApiPropertyOptional({
@@ -258,15 +296,42 @@ export class BulkUploadMetadataDto {
   })
   @IsOptional()
   @IsString()
+  @Length(1, 255, {
+    message: 'Folder path must be between 1 and 255 characters',
+  })
+  @Matches(/^[a-zA-Z0-9\-_\/\s]+$/, {
+    message: 'Folder path contains invalid characters',
+  })
   folderPath?: string;
 
   @ApiPropertyOptional({
     description: 'Cloud storage provider',
     example: 'dropbox',
-    enum: ['google-cloud', 'dropbox', 'mega', 'google-drive', 'backblaze', 'onedrive'],
+    enum: [
+      'google-cloud',
+      'dropbox',
+      'mega',
+      'google-drive',
+      'backblaze',
+      'onedrive',
+    ],
   })
   @IsOptional()
   @IsString()
+  @IsIn(
+    [
+      'google-cloud',
+      'dropbox',
+      'mega',
+      'google-drive',
+      'backblaze',
+      'onedrive',
+    ],
+    {
+      message:
+        'Invalid provider. Supported providers: google-cloud, dropbox, mega, google-drive, backblaze, onedrive',
+    },
+  )
   provider?: string;
 
   @ApiPropertyOptional({
@@ -276,7 +341,12 @@ export class BulkUploadMetadataDto {
   })
   @IsOptional()
   @IsArray()
+  @ArrayMaxSize(10, { message: 'Maximum 10 default tags allowed' })
   @IsString({ each: true })
+  @Length(1, 50, {
+    each: true,
+    message: 'Each tag must be between 1 and 50 characters',
+  })
   defaultTags?: string[];
 
   @ApiPropertyOptional({

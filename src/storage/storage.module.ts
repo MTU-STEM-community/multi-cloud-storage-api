@@ -5,6 +5,7 @@ import { StorageService } from './storage.service';
 import { CloudStorageFactoryService } from '../common/providers/cloud-storage-factory.service';
 import { PrismaModule } from '../prisma/prisma.module';
 import { EncryptionService } from '../utils/encryption.util';
+import { CleanupService } from './services/cleanup.service';
 import { GoogleCloudModule } from '../providers/google-cloud/google-cloud.module';
 import { DropboxModule } from '../providers/dropbox/dropbox.module';
 import { MegaModule } from 'src/providers/mega/mega.module';
@@ -24,6 +25,11 @@ import { OneDriveModule } from 'src/providers/onedrive/onedrive.module';
     OneDriveModule,
   ],
   controllers: [StorageController],
-  providers: [StorageService, CloudStorageFactoryService, EncryptionService],
+  providers: [
+    StorageService,
+    CloudStorageFactoryService,
+    EncryptionService,
+    CleanupService,
+  ],
 })
 export class StorageModule {}
