@@ -186,7 +186,6 @@ export class StorageController {
     return this.storageService.getAllFileTags();
   }
 
-
   @Post('bulk-upload')
   @ApiBulkUploadFiles()
   @UseInterceptors(FilesInterceptor('files', 20)) // Max 20 files
