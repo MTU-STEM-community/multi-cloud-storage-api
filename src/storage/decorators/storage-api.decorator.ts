@@ -106,7 +106,8 @@ export const ApiDownloadFile = () =>
   applyDecorators(
     ApiOperation({
       summary: 'Download file from cloud storage',
-      description: 'Download a file using its database ID from the specified cloud storage provider',
+      description:
+        'Download a file using its database ID from the specified cloud storage provider',
     }),
     ApiProviderParam(),
     ApiParam({
@@ -170,7 +171,8 @@ export const ApiDeleteFile = () =>
   applyDecorators(
     ApiOperation({
       summary: 'Delete file from cloud storage',
-      description: 'Delete a file using its database ID from the specified cloud storage provider',
+      description:
+        'Delete a file using its database ID from the specified cloud storage provider',
     }),
     ApiProviderParam(),
     ApiParam({
@@ -502,7 +504,8 @@ export const ApiBulkUploadFiles = () =>
   applyDecorators(
     ApiOperation({
       summary: 'Bulk upload multiple files',
-      description: 'Upload multiple files to a single cloud storage provider with optional metadata',
+      description:
+        'Upload multiple files to a single cloud storage provider with optional metadata',
     }),
     ApiConsumes('multipart/form-data'),
     ApiResponse({
@@ -536,7 +539,8 @@ export const ApiMultiProviderUpload = () =>
   applyDecorators(
     ApiOperation({
       summary: 'Upload file to multiple cloud providers',
-      description: 'Upload a single file to multiple cloud storage providers simultaneously',
+      description:
+        'Upload a single file to multiple cloud storage providers simultaneously',
     }),
     ApiConsumes('multipart/form-data'),
     ApiResponse({
@@ -558,8 +562,14 @@ export const ApiMultiProviderUpload = () =>
               properties: {
                 provider: { type: 'string', example: 'dropbox' },
                 success: { type: 'boolean', example: true },
-                url: { type: 'string', example: 'https://dropbox.com/s/abc123/document.pdf' },
-                storageName: { type: 'string', example: '1640995200000_document.pdf' },
+                url: {
+                  type: 'string',
+                  example: 'https://dropbox.com/s/abc123/document.pdf',
+                },
+                storageName: {
+                  type: 'string',
+                  example: '1640995200000_document.pdf',
+                },
                 error: { type: 'string', example: 'Provider unavailable' },
               },
             },
@@ -574,7 +584,8 @@ export const ApiMultiProviderDelete = () =>
   applyDecorators(
     ApiOperation({
       summary: 'Delete file from multiple cloud providers',
-      description: 'Delete a file from multiple cloud storage providers simultaneously',
+      description:
+        'Delete a file from multiple cloud storage providers simultaneously',
     }),
     ApiResponse({
       status: 200,
@@ -594,7 +605,10 @@ export const ApiMultiProviderDelete = () =>
               properties: {
                 provider: { type: 'string', example: 'dropbox' },
                 success: { type: 'boolean', example: true },
-                error: { type: 'string', example: 'File not found in provider' },
+                error: {
+                  type: 'string',
+                  example: 'File not found in provider',
+                },
               },
             },
           },
