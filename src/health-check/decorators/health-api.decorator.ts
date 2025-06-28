@@ -7,7 +7,7 @@ export const ApiHealthCheck = () =>
     ApiOperation({
       summary: 'Check application health status',
       description:
-        'Comprehensive health check including database, memory, and uptime status',
+        'Comprehensive health check including database, memory, uptime, cloud providers, and performance monitoring',
     }),
     ApiResponse({
       status: 200,
@@ -75,6 +75,101 @@ export const ApiHealthCheck = () =>
                   },
                 },
               },
+              providers: {
+                type: 'object',
+                properties: {
+                  status: {
+                    type: 'string',
+                    enum: ['ok', 'warning', 'error'],
+                    example: 'ok',
+                    description: 'Overall cloud providers health status',
+                  },
+                  healthy: {
+                    type: 'number',
+                    example: 6,
+                    description: 'Number of healthy providers',
+                  },
+                  total: {
+                    type: 'number',
+                    example: 6,
+                    description: 'Total number of providers',
+                  },
+                  providers: {
+                    type: 'array',
+                    items: {
+                      type: 'object',
+                      properties: {
+                        provider: {
+                          type: 'string',
+                          example: 'google-cloud',
+                          description: 'Provider name',
+                        },
+                        status: {
+                          type: 'string',
+                          enum: ['ok', 'warning', 'error'],
+                          example: 'ok',
+                        },
+                        responseTime: {
+                          type: 'number',
+                          example: 250,
+                          description: 'Provider response time in milliseconds',
+                        },
+                      },
+                    },
+                  },
+                },
+              },
+              performance: {
+                type: 'object',
+                properties: {
+                  status: {
+                    type: 'string',
+                    enum: ['ok', 'warning', 'error'],
+                    example: 'ok',
+                    description: 'Performance monitoring health status',
+                  },
+                  systemMetrics: {
+                    type: 'object',
+                    properties: {
+                      averageResponseTime: {
+                        type: 'number',
+                        example: 850,
+                        description: 'Average response time in milliseconds',
+                      },
+                      successRate: {
+                        type: 'number',
+                        example: 98.5,
+                        description: 'Success rate percentage',
+                      },
+                      totalRequests: {
+                        type: 'number',
+                        example: 1250,
+                        description: 'Total requests in last 24 hours',
+                      },
+                    },
+                  },
+                  providerSummary: {
+                    type: 'object',
+                    properties: {
+                      healthy: {
+                        type: 'number',
+                        example: 5,
+                        description: 'Number of healthy providers',
+                      },
+                      degraded: {
+                        type: 'number',
+                        example: 1,
+                        description: 'Number of degraded providers',
+                      },
+                      unhealthy: {
+                        type: 'number',
+                        example: 0,
+                        description: 'Number of unhealthy providers',
+                      },
+                    },
+                  },
+                },
+              },
             },
           },
           error: {
@@ -122,6 +217,8 @@ export const ApiHealthCheck = () =>
             example: {
               database: 'Connection timeout after 5000ms',
               memory: 'Memory usage 95% exceeds threshold of 80%',
+              providers: 'Google Cloud and Dropbox providers are unreachable',
+              performance: 'System success rate below 80% threshold',
             },
           },
           details: {
