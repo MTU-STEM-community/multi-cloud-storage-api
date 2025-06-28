@@ -1,5 +1,7 @@
 import { Injectable, Logger, HttpStatus, HttpException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
+import { CloudStorageFactoryService } from '../common/providers/cloud-storage-factory.service';
+import { PerformanceMetricsService } from '../monitoring/performance-metrics.service';
 import * as os from 'os';
 
 @Injectable()
@@ -7,7 +9,11 @@ export class HealthCheckService {
   private readonly logger = new Logger(HealthCheckService.name);
   private startTime: number;
 
-  constructor(private readonly prisma: PrismaService) {
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly cloudStorageFactory: CloudStorageFactoryService,
+    private readonly metricsService: PerformanceMetricsService,
+  ) {
     this.startTime = Date.now();
   }
 
@@ -17,9 +23,17 @@ export class HealthCheckService {
         this.checkDatabase(),
         this.checkMemoryUsage(),
         this.checkUptime(),
+        this.checkProviders(),
+        this.checkPerformance(),
       ]);
 
-      const [dbCheck, memoryCheck, uptimeCheck] = checks;
+      const [
+        dbCheck,
+        memoryCheck,
+        uptimeCheck,
+        providersCheck,
+        performanceCheck,
+      ] = checks;
 
       const hasError = checks.some((check) => check.status === 'error');
       const hasWarning = checks.some((check) => check.status === 'warning');
@@ -32,6 +46,8 @@ export class HealthCheckService {
           database: dbCheck,
           memory: memoryCheck,
           uptime: uptimeCheck,
+          providers: providersCheck,
+          performance: performanceCheck,
         },
         error: {},
         details: {
@@ -142,6 +158,123 @@ export class HealthCheckService {
       };
     } catch (error) {
       this.logger.error('Uptime health check failed', error);
+      return {
+        status: 'error',
+        error: error.message,
+      };
+    }
+  }
+
+  private async checkProviders() {
+    try {
+      const providers = [
+        'google-cloud',
+        'dropbox',
+        'mega',
+        'google-drive',
+        'backblaze',
+        'onedrive',
+      ];
+      const providerChecks = await Promise.allSettled(
+        providers.map(async (provider) => {
+          try {
+            const start = Date.now();
+            const storageProvider =
+              await this.cloudStorageFactory.getProvider(provider);
+
+            // Simple connectivity test - try to list files
+            await storageProvider.listFiles();
+            const responseTime = Date.now() - start;
+
+            return {
+              provider,
+              status: responseTime < 3000 ? 'ok' : 'warning',
+              responseTime,
+            };
+          } catch (error) {
+            return {
+              provider,
+              status: 'error',
+              error: error.message,
+            };
+          }
+        }),
+      );
+
+      const results = providerChecks.map((check, index) => {
+        if (check.status === 'fulfilled') {
+          return check.value;
+        } else {
+          return {
+            provider: providers[index],
+            status: 'error',
+            error: check.reason?.message || 'Unknown error',
+          };
+        }
+      });
+
+      const healthyProviders = results.filter((r) => r.status === 'ok').length;
+      const totalProviders = results.length;
+      const overallStatus =
+        healthyProviders === totalProviders
+          ? 'ok'
+          : healthyProviders > totalProviders / 2
+            ? 'warning'
+            : 'error';
+
+      return {
+        status: overallStatus,
+        healthy: healthyProviders,
+        total: totalProviders,
+        providers: results,
+      };
+    } catch (error) {
+      this.logger.error('Provider health check failed', error);
+      return {
+        status: 'error',
+        error: error.message,
+      };
+    }
+  }
+
+  private checkPerformance() {
+    try {
+      const systemMetrics = this.metricsService.getSystemMetrics();
+      const providerPerformance = this.metricsService.getProviderPerformance();
+
+      const unhealthyProviders = providerPerformance.filter(
+        (p) => p.status === 'unhealthy',
+      ).length;
+      const degradedProviders = providerPerformance.filter(
+        (p) => p.status === 'degraded',
+      ).length;
+
+      let status = 'ok';
+      if (unhealthyProviders > 0 || systemMetrics.successRate < 80) {
+        status = 'error';
+      } else if (
+        degradedProviders > 0 ||
+        systemMetrics.averageResponseTime > 3000
+      ) {
+        status = 'warning';
+      }
+
+      return {
+        status,
+        systemMetrics: {
+          averageResponseTime: systemMetrics.averageResponseTime,
+          successRate: systemMetrics.successRate,
+          totalRequests: systemMetrics.totalRequests,
+        },
+        providerSummary: {
+          healthy: providerPerformance.filter((p) => p.status === 'healthy')
+            .length,
+          degraded: degradedProviders,
+          unhealthy: unhealthyProviders,
+        },
+      };
+    } catch (error) {
+      this.logger.error('Performance health check failed', error);
       return {
         status: 'error',
         error: error.message,

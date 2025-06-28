@@ -11,6 +11,7 @@ import { MegaModule } from './providers/mega/mega.module';
 import { GoogleDriveModule } from './providers/google-drive/google-drive.module';
 import { BackblazeModule } from './providers/backblaze/backblaze.module';
 import { OneDriveModule } from './providers/onedrive/onedrive.module';
+import { MonitoringModule } from './monitoring/monitoring.module';
 
 @Module({
   imports: [
@@ -24,6 +25,7 @@ import { OneDriveModule } from './providers/onedrive/onedrive.module';
     BackblazeModule,
     OneDriveModule,
     HealthCheckModule,
+    MonitoringModule,
   ],
   controllers: [AppController],
   providers: [AppService],
