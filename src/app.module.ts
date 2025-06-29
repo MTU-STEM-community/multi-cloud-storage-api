@@ -1,4 +1,5 @@
 import { Module } from '@nestjs/common';
+import { APP_GUARD } from '@nestjs/core';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
 import { StorageModule } from './storage/storage.module';
@@ -12,10 +13,13 @@ import { GoogleDriveModule } from './providers/google-drive/google-drive.module'
 import { BackblazeModule } from './providers/backblaze/backblaze.module';
 import { OneDriveModule } from './providers/onedrive/onedrive.module';
 import { MonitoringModule } from './monitoring/monitoring.module';
+import { AuthModule } from './auth/auth.module';
+import { JwtAuthGuard } from './auth/guards/jwt-auth.guard';
 
 @Module({
   imports: [
     ConfigModule.forRoot({ isGlobal: true }),
+    AuthModule,
     StorageModule,
     PrismaModule,
     DropboxModule,
@@ -28,6 +32,12 @@ import { MonitoringModule } from './monitoring/monitoring.module';
     MonitoringModule,
   ],
   controllers: [AppController],
-  providers: [AppService],
+  providers: [
+    AppService,
+    {
+      provide: APP_GUARD,
+      useClass: JwtAuthGuard,
+    },
+  ],
 })
 export class AppModule {}

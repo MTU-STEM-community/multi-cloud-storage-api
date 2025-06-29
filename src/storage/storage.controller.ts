@@ -18,7 +18,7 @@ import { FileInterceptor, FilesInterceptor } from '@nestjs/platform-express';
 import { StorageService } from './storage.service';
 import { FileValidationPipe } from '../common/pipes/file-validation.pipe';
 import { Response } from 'express';
-import { ApiTags } from '@nestjs/swagger';
+import { ApiTags, ApiBearerAuth } from '@nestjs/swagger';
 import {
   ApiUploadFile,
   ApiListFiles,
@@ -47,6 +47,7 @@ import {
 } from './dto/file-metadata.dto';
 
 @ApiTags('storage')
+@ApiBearerAuth()
 @Controller('storage')
 export class StorageController {
   constructor(private readonly storageService: StorageService) {}
