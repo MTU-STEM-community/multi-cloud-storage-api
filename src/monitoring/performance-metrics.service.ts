@@ -100,12 +100,10 @@ export class PerformanceMetricsService {
    */
   getProviderPerformance(): ProviderPerformance[] {
     const providers = [
-      'google-cloud',
       'dropbox',
       'mega',
       'google-drive',
       'backblaze',
-      'onedrive',
     ];
     const last24Hours = new Date(Date.now() - 24 * 60 * 60 * 1000);
 
