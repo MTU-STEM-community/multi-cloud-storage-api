@@ -31,7 +31,6 @@ export class BackblazeService extends BaseCloudStorageProvider {
     };
   }
 
-  s;
   private async getAuthToken(): Promise<{
     authorizationToken: string;
     apiUrl: string;
@@ -206,6 +205,7 @@ export class BackblazeService extends BaseCloudStorageProvider {
         .update(file.buffer)
         .digest('hex');
 
+      // FIX: Convert Buffer to Uint8Array for fetch compatibility
       const response = await fetch(uploadUrl, {
         method: 'POST',
         headers: {
@@ -215,7 +215,7 @@ export class BackblazeService extends BaseCloudStorageProvider {
           'Content-Length': file.size.toString(),
           'X-Bz-Content-Sha1': sha1Hash,
         },
-        body: file.buffer,
+        body: new Uint8Array(file.buffer),
       });
 
       if (!response.ok) {
@@ -409,6 +409,7 @@ export class BackblazeService extends BaseCloudStorageProvider {
         .update(emptyBuffer)
         .digest('hex');
 
+      // FIX: Convert empty Buffer to Uint8Array
       const response = await fetch(uploadUrl, {
         method: 'POST',
         headers: {
@@ -418,7 +419,7 @@ export class BackblazeService extends BaseCloudStorageProvider {
           'Content-Length': '0',
           'X-Bz-Content-Sha1': sha1Hash,
         },
-        body: emptyBuffer,
+        body: new Uint8Array(0), // Empty Uint8Array instead of Buffer
       });
 
       if (!response.ok) {
