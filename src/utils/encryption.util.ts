@@ -9,11 +9,16 @@ export class EncryptionService {
 
   async encrypt(text: string, secret: string): Promise<string> {
     const iv = randomBytes(this.ivLength);
-    const key = await promisify(scrypt)(secret, 'salt', 32);
-    const cipher = createCipheriv(this.algorithm, key as Buffer, iv);
+    const salt = randomBytes(16);
+    const key = (await promisify(scrypt)(secret, salt, 32)) as Buffer;
+
+    const cipher = createCipheriv(this.algorithm, key, iv);
     let encrypted = cipher.update(text, 'utf8', 'hex');
     encrypted += cipher.final('hex');
-    return `${iv.toString('hex')}:${encrypted}`;
+
+    const authTag = cipher.getAuthTag();
+
+    return `${salt.toString('hex')}:${iv.toString('hex')}:${authTag.toString('hex')}:${encrypted}`;
   }
 
   async decrypt(encryptedText: string, secret: string): Promise<string> {
