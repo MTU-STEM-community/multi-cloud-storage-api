@@ -17,14 +17,12 @@ export class ProviderConfigService {
       projectId: this.configService.get<string>('GOOGLE_CLOUD_PROJECT_ID'),
       bucketName: this.configService.get<string>('GOOGLE_CLOUD_BUCKET_NAME'),
       keyFilePath: this.configService.get<string>('GOOGLE_CLOUD_KEYFILE_PATH'),
-      apiKey: this.configService.get<string>('GOOGLE_CLOUD_API_KEY'),
     };
 
     this.validateRequiredConfig('Google Cloud', [
       { key: 'GOOGLE_CLOUD_PROJECT_ID', value: config.projectId },
       { key: 'GOOGLE_CLOUD_BUCKET_NAME', value: config.bucketName },
       { key: 'GOOGLE_CLOUD_KEYFILE_PATH', value: config.keyFilePath },
-      { key: 'GOOGLE_CLOUD_API_KEY', value: config.apiKey },
     ]);
 
     return config;

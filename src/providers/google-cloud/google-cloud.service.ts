@@ -26,7 +26,6 @@ export class GoogleCloudService extends BaseCloudStorageProvider {
       projectId: config.projectId,
       bucketName: config.bucketName,
       keyFilePath: config.keyFilePath,
-      apiKey: config.apiKey,
     };
   }
 
