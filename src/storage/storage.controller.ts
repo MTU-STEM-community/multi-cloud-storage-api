@@ -156,16 +156,16 @@ export class StorageController {
     return this.storageService.updateFileMetadata(fileId, updateData);
   }
 
-  @Get('files/:fileId')
-  @ApiGetFileById()
-  async getFileById(@Param('fileId') fileId: string) {
-    return this.storageService.getFileById(fileId);
-  }
-
   @Get('files/search')
   @ApiSearchFiles()
   async searchFiles(@Query() searchParams: FileSearchDto) {
     return this.storageService.searchFiles(searchParams);
+  }
+
+  @Get('files/:fileId')
+  @ApiGetFileById()
+  async getFileById(@Param('fileId') fileId: string) {
+    return this.storageService.getFileById(fileId);
   }
 
   @Delete('files/bulk')
