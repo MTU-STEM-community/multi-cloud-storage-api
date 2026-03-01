@@ -24,7 +24,7 @@ model File {
     expiresAt      DateTime?
     createdAt      DateTime       @default(now())
     updatedAt      DateTime       @updatedAt
-    deletedAt      DateTime?      @default(now())
+    deletedAt      DateTime?
     cloudStorages  CloudStorage[]
     fileTags       FileTag[]
 
