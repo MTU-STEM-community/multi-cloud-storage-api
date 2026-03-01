@@ -204,13 +204,14 @@ export class MegaService extends BaseCloudStorageProvider {
   }
 
   async deleteFile(fileId: string, folderPath?: string): Promise<void> {
-    this.executeWithErrorHandling(async () => {
+    return this.executeWithErrorHandling(async () => {
       const storage = await this.getMegaStorage();
       const targetFolder = await this.navigateToFolder(storage, folderPath);
 
       const targetFile = targetFolder.children.find(
         (item: any) => item.name === fileId,
       );
+
       if (!targetFile) {
         throw new BadRequestException(`File '${fileId}' not found`);
       }
