@@ -7,7 +7,12 @@ import { ConfigModule } from '@nestjs/config';
 
 @Module({
   imports: [ConfigModule],
-  providers: [BackblazeService, PrismaService, EncryptionService, ProviderConfigService],
+  providers: [
+    BackblazeService,
+    PrismaService,
+    EncryptionService,
+    ProviderConfigService,
+  ],
   exports: [BackblazeService],
 })
 export class BackblazeModule {}

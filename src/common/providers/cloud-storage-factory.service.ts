@@ -31,7 +31,9 @@ export class CloudStorageFactoryService {
     }
 
     try {
-      return await this.moduleRef.get(serviceClass, { strict: false }) as CloudStorageProvider;
+      return (await this.moduleRef.get(serviceClass, {
+        strict: false,
+      })) as CloudStorageProvider;
     } catch (error) {
       throw new BadRequestException(
         `Failed to initialize provider ${providerName}: ${error.message}`,

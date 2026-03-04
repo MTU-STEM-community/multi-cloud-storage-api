@@ -7,7 +7,12 @@ import { ConfigModule } from '@nestjs/config';
 
 @Module({
   imports: [ConfigModule],
-  providers: [GoogleDriveService, PrismaService, EncryptionService, ProviderConfigService],
+  providers: [
+    GoogleDriveService,
+    PrismaService,
+    EncryptionService,
+    ProviderConfigService,
+  ],
   exports: [GoogleDriveService],
 })
 export class GoogleDriveModule {}

@@ -1,4 +1,8 @@
-import { Injectable, BadRequestException, NotFoundException } from '@nestjs/common';
+import {
+  Injectable,
+  BadRequestException,
+  NotFoundException,
+} from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { PrismaService } from '../../prisma/prisma.service';
 import { EncryptionService } from '../../utils/encryption.util';
@@ -18,7 +22,13 @@ export class MegaService extends BaseCloudStorageProvider {
     encryptionService: EncryptionService,
     providerConfigService: ProviderConfigService,
   ) {
-    super(configService, prisma, encryptionService, providerConfigService, 'Mega');
+    super(
+      configService,
+      prisma,
+      encryptionService,
+      providerConfigService,
+      'Mega',
+    );
   }
 
   protected validateConfiguration(): void {
@@ -184,7 +194,9 @@ export class MegaService extends BaseCloudStorageProvider {
       return targetFolder.children.map((item: any) => ({
         name: item.name,
         size: item.directory ? '-' : item.size,
-        contentType: item.directory ? 'folder' : FileValidationPipe.getMimeType(item.name),
+        contentType: item.directory
+          ? 'folder'
+          : FileValidationPipe.getMimeType(item.name),
         created: new Date(item.timestamp * 1000).toISOString(),
         path: folderPath ? `${folderPath}/${item.name}` : item.name,
         isFolder: item.directory,

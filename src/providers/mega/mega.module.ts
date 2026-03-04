@@ -7,7 +7,12 @@ import { ConfigModule } from '@nestjs/config';
 
 @Module({
   imports: [ConfigModule],
-  providers: [MegaService, PrismaService, EncryptionService, ProviderConfigService],
+  providers: [
+    MegaService,
+    PrismaService,
+    EncryptionService,
+    ProviderConfigService,
+  ],
   exports: [MegaService],
 })
 export class MegaModule {}

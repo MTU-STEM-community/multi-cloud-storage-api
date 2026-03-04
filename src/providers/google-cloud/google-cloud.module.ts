@@ -7,7 +7,12 @@ import { ConfigModule } from '@nestjs/config';
 
 @Module({
   imports: [ConfigModule],
-  providers: [GoogleCloudService, PrismaService, EncryptionService, ProviderConfigService],
+  providers: [
+    GoogleCloudService,
+    PrismaService,
+    EncryptionService,
+    ProviderConfigService,
+  ],
   exports: [GoogleCloudService],
 })
 export class GoogleCloudModule {}

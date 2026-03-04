@@ -9,7 +9,12 @@ import {
   Request,
 } from '@nestjs/common';
 import { ApiTags } from '@nestjs/swagger';
-import { AuthService, LoginDto, RegisterDto, ChangePasswordDto } from './auth.service';
+import {
+  AuthService,
+  LoginDto,
+  RegisterDto,
+  ChangePasswordDto,
+} from './auth.service';
 import { JwtAuthGuard } from './guards/jwt-auth.guard';
 import { Public } from './decorators/public.decorator';
 import { AuthThrottle } from './decorators/throttle.decorator';

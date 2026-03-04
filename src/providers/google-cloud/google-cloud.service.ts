@@ -9,14 +9,20 @@ import { ProviderConfigService } from 'src/common/providers/provider-config.serv
 
 @Injectable()
 export class GoogleCloudService extends BaseCloudStorageProvider {
-constructor(
-  configService: ConfigService,
-  prisma: PrismaService,
-  encryptionService: EncryptionService,
-  providerConfigService: ProviderConfigService,
-) {
-  super(configService, prisma, encryptionService, providerConfigService, 'GoogleCloud');
-}
+  constructor(
+    configService: ConfigService,
+    prisma: PrismaService,
+    encryptionService: EncryptionService,
+    providerConfigService: ProviderConfigService,
+  ) {
+    super(
+      configService,
+      prisma,
+      encryptionService,
+      providerConfigService,
+      'GoogleCloud',
+    );
+  }
 
   protected validateConfiguration(): void {
     this.providerConfigService.getGoogleCloudConfig();

@@ -618,7 +618,7 @@ export const ApiMultiProviderDelete = () =>
     ApiStandardResponses(),
   );
 
-  export const ApiAddTagsToFile = () =>
+export const ApiAddTagsToFile = () =>
   applyDecorators(
     ApiOperation({
       summary: 'Add tags to a file',

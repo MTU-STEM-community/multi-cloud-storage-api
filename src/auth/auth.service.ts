@@ -41,7 +41,11 @@ export class AuthService {
   async validateUser(username: string, password: string): Promise<any> {
     const user = await this.prisma.user.findUnique({ where: { username } });
 
-    if (user && user.isActive && (await bcrypt.compare(password, user.password))) {
+    if (
+      user &&
+      user.isActive &&
+      (await bcrypt.compare(password, user.password))
+    ) {
       const { password: _, ...result } = user;
       return result;
     }
@@ -75,10 +79,7 @@ export class AuthService {
   async register(registerDto: RegisterDto) {
     const existingUser = await this.prisma.user.findFirst({
       where: {
-        OR: [
-          { username: registerDto.username },
-          { email: registerDto.email },
-        ],
+        OR: [{ username: registerDto.username }, { email: registerDto.email }],
       },
     });
 
@@ -128,7 +129,10 @@ export class AuthService {
       throw new UnauthorizedException('Current password is incorrect');
     }
 
-    const hashedNewPassword = await bcrypt.hash(changePasswordDto.newPassword, 10);
+    const hashedNewPassword = await bcrypt.hash(
+      changePasswordDto.newPassword,
+      10,
+    );
 
     await this.prisma.user.update({
       where: { id: userId },

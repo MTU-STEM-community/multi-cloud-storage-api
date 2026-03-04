@@ -7,7 +7,12 @@ import { ConfigModule } from '@nestjs/config';
 
 @Module({
   imports: [ConfigModule],
-  providers: [DropboxService, PrismaService, EncryptionService, ProviderConfigService],
+  providers: [
+    DropboxService,
+    PrismaService,
+    EncryptionService,
+    ProviderConfigService,
+  ],
   exports: [DropboxService],
 })
 export class DropboxModule {}

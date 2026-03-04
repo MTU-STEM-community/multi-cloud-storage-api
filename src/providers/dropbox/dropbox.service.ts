@@ -15,7 +15,13 @@ export class DropboxService extends BaseCloudStorageProvider {
     encryptionService: EncryptionService,
     providerConfigService: ProviderConfigService,
   ) {
-    super(configService, prisma, encryptionService, providerConfigService, 'Dropbox');
+    super(
+      configService,
+      prisma,
+      encryptionService,
+      providerConfigService,
+      'Dropbox',
+    );
   }
 
   protected validateConfiguration(): void {

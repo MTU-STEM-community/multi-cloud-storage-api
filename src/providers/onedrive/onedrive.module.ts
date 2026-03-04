@@ -7,7 +7,12 @@ import { ConfigModule } from '@nestjs/config';
 
 @Module({
   imports: [ConfigModule],
-  providers: [OneDriveService, PrismaService, EncryptionService, ProviderConfigService],
+  providers: [
+    OneDriveService,
+    PrismaService,
+    EncryptionService,
+    ProviderConfigService,
+  ],
   exports: [OneDriveService],
 })
 export class OneDriveModule {}

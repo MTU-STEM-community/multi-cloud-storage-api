@@ -50,8 +50,12 @@ export class ProviderConfigService {
   getGoogleDriveConfig() {
     const config = {
       clientId: this.configService.get<string>('GOOGLE_DRIVE_CLIENT_ID'),
-      clientSecret: this.configService.get<string>('GOOGLE_DRIVE_CLIENT_SECRET'),
-      refreshToken: this.configService.get<string>('GOOGLE_DRIVE_REFRESH_TOKEN'),
+      clientSecret: this.configService.get<string>(
+        'GOOGLE_DRIVE_CLIENT_SECRET',
+      ),
+      refreshToken: this.configService.get<string>(
+        'GOOGLE_DRIVE_REFRESH_TOKEN',
+      ),
     };
 
     this.validateRequiredConfig('Google Drive', [
@@ -98,7 +102,8 @@ export class ProviderConfigService {
   }
 
   getEncryptionConfig() {
-    const encryptionSecret = this.configService.get<string>('ENCRYPTION_SECRET');
+    const encryptionSecret =
+      this.configService.get<string>('ENCRYPTION_SECRET');
 
     if (!encryptionSecret) {
       throw new BadRequestException(

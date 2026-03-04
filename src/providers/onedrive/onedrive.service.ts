@@ -12,14 +12,20 @@ import { ProviderConfigService } from 'src/common/providers/provider-config.serv
 export class OneDriveService extends BaseCloudStorageProvider {
   private readonly baseUrl = 'https://graph.microsoft.com/v1.0/me/drive';
 
-constructor(
-  configService: ConfigService,
-  prisma: PrismaService,
-  encryptionService: EncryptionService,
-  providerConfigService: ProviderConfigService,
-) {
-  super(configService, prisma, encryptionService, providerConfigService, 'OneDrive');
-}
+  constructor(
+    configService: ConfigService,
+    prisma: PrismaService,
+    encryptionService: EncryptionService,
+    providerConfigService: ProviderConfigService,
+  ) {
+    super(
+      configService,
+      prisma,
+      encryptionService,
+      providerConfigService,
+      'OneDrive',
+    );
+  }
 
   protected validateConfiguration(): void {
     this.providerConfigService.getOneDriveConfig();
