@@ -1,4 +1,8 @@
-import { Injectable, BadRequestException } from '@nestjs/common';
+import {
+  Injectable,
+  BadRequestException,
+  NotFoundException,
+} from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { PrismaService } from '../../prisma/prisma.service';
 import { EncryptionService } from '../../utils/encryption.util';
@@ -12,14 +16,20 @@ import { ProviderConfigService } from 'src/common/providers/provider-config.serv
 
 @Injectable()
 export class GoogleDriveService extends BaseCloudStorageProvider {
-constructor(
-  configService: ConfigService,
-  prisma: PrismaService,
-  encryptionService: EncryptionService,
-  providerConfigService: ProviderConfigService,
-) {
-  super(configService, prisma, encryptionService, providerConfigService, 'GoogleDrive');
-}
+  constructor(
+    configService: ConfigService,
+    prisma: PrismaService,
+    encryptionService: EncryptionService,
+    providerConfigService: ProviderConfigService,
+  ) {
+    super(
+      configService,
+      prisma,
+      encryptionService,
+      providerConfigService,
+      'GoogleDrive',
+    );
+  }
 
   protected validateConfiguration(): void {
     this.providerConfigService.getGoogleDriveConfig();
@@ -189,7 +199,7 @@ constructor(
         if (response.data.files && response.data.files.length > 0) {
           driveFileId = response.data.files[0].id;
         } else {
-          throw new BadRequestException(
+          throw new NotFoundException(
             `File '${fileId}' not found in ${folderPath}`,
           );
         }
@@ -226,7 +236,7 @@ constructor(
         if (response.data.files && response.data.files.length > 0) {
           driveFileId = response.data.files[0].id;
         } else {
-          throw new BadRequestException(
+          throw new NotFoundException(
             `File '${fileId}' not found in ${folderPath}`,
           );
         }
