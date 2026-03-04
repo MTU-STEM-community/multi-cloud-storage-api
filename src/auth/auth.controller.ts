@@ -10,9 +10,9 @@ import {
 } from '@nestjs/common';
 import { ApiTags } from '@nestjs/swagger';
 import { AuthService, LoginDto, RegisterDto, ChangePasswordDto } from './auth.service';
-import { LocalAuthGuard } from './guards/local-auth.guard';
 import { JwtAuthGuard } from './guards/jwt-auth.guard';
 import { Public } from './decorators/public.decorator';
+import { AuthThrottle } from './decorators/throttle.decorator';
 import { ApiLogin, ApiRegister, ApiGetProfile, ApiChangePassword } from './decorators/auth-api.decorator';
 
 @ApiTags('Authentication')
@@ -21,6 +21,7 @@ export class AuthController {
   constructor(private authService: AuthService) {}
 
   @Public()
+  @AuthThrottle()
   @Post('login')
   @HttpCode(HttpStatus.OK)
   @ApiLogin()
@@ -29,6 +30,7 @@ export class AuthController {
   }
 
   @Public()
+  @AuthThrottle()
   @Post('register')
   @ApiRegister()
   async register(@Body() registerDto: RegisterDto) {
