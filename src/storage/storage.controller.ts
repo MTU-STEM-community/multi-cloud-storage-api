@@ -35,6 +35,7 @@ import {
   ApiBulkUploadFiles,
   ApiMultiProviderUpload,
   ApiMultiProviderDelete,
+  ApiAddTagsToFile,
 } from './decorators/storage-api.decorator';
 import {
   UpdateFileMetadataDto,
@@ -44,6 +45,7 @@ import {
   MultiProviderUploadDto,
   MultiProviderDeleteDto,
   BulkUploadMetadataDto,
+  AddTagsToFileDto,
 } from './dto/file-metadata.dto';
 
 @ApiTags('storage')
@@ -191,6 +193,15 @@ export class StorageController {
   @ApiGetAllFileTags()
   async getAllFileTags() {
     return this.storageService.getAllFileTags();
+  }
+
+  @Post('files/:fileId/tags')
+  @ApiAddTagsToFile()
+  async addTagsToFile(
+    @Param('fileId') fileId: string,
+    @Body() dto: AddTagsToFileDto,
+  ) {
+    return this.storageService.addTagsToFile(fileId, dto);
   }
 
   @Post('bulk-upload')
