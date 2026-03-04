@@ -2,22 +2,24 @@ import { Injectable, BadRequestException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { PrismaService } from '../../prisma/prisma.service';
 import { EncryptionService } from '../../utils/encryption.util';
+import { ProviderConfigService } from '../../common/providers/provider-config.service';
 import { FileListItem } from '../../common/interfaces/cloud-storage.interface';
 import * as megajs from 'megajs';
 import { FileValidationPipe } from '../../common/pipes/file-validation.pipe';
 import { BaseCloudStorageProvider } from '../../common/providers/base-cloud-storage.provider';
-import { ProviderConfigService } from 'src/common/providers/provider-config.service';
 
 @Injectable()
 export class MegaService extends BaseCloudStorageProvider {
-constructor(
-  configService: ConfigService,
-  prisma: PrismaService,
-  encryptionService: EncryptionService,
-  providerConfigService: ProviderConfigService,
-) {
-  super(configService, prisma, encryptionService, providerConfigService, 'Mega');
-}
+  private storageInstance: megajs.Storage | null = null;
+
+  constructor(
+    configService: ConfigService,
+    prisma: PrismaService,
+    encryptionService: EncryptionService,
+    providerConfigService: ProviderConfigService,
+  ) {
+    super(configService, prisma, encryptionService, providerConfigService, 'Mega');
+  }
 
   protected validateConfiguration(): void {
     this.providerConfigService.getMegaConfig();
@@ -32,27 +34,37 @@ constructor(
   }
 
   private async getMegaStorage(): Promise<megajs.Storage> {
+    if (this.storageInstance) {
+      return this.storageInstance;
+    }
+
     const { email, password } = this.getCredentialsForEncryption();
 
-    this.logger.log('Attempting to authenticate with Mega...');
+    this.logger.log('Authenticating with Mega...');
 
     return new Promise<megajs.Storage>((resolve, reject) => {
       const storage = new megajs.Storage({
-        email: email,
-        password: password,
+        email,
+        password,
         autoload: true,
       });
 
       storage.on('ready', () => {
         this.logger.log('Mega authentication successful');
+        this.storageInstance = storage;
         resolve(storage);
       });
 
       storage.on('error', (err) => {
+        this.storageInstance = null;
         this.logger.error(`Mega authentication error: ${err.message}`);
         reject(new Error(`Failed to authenticate with Mega: ${err.message}`));
       });
     });
+  }
+
+  private invalidateSession(): void {
+    this.storageInstance = null;
   }
 
   private async navigateToFolder(
@@ -104,9 +116,9 @@ constructor(
 
       if (!found) {
         targetFolder = await new Promise((resolve, reject) => {
-          targetFolder.mkdir(folder, (err: any, folder: any) => {
+          targetFolder.mkdir(folder, (err: any, newFolder: any) => {
             if (err) reject(err);
-            else resolve(folder);
+            else resolve(newFolder);
           });
         });
       }
@@ -123,60 +135,56 @@ constructor(
     return this.executeWithErrorHandling(async () => {
       this.validateFileOperation(file);
 
-      const storage = await this.getMegaStorage();
+      let storage: megajs.Storage;
+      try {
+        storage = await this.getMegaStorage();
+      } catch (error) {
+        this.invalidateSession();
+        throw error;
+      }
+
       const targetFolder = folderPath
         ? await this.createFolderPath(storage, folderPath)
         : storage.root;
 
       const uploadResult: any = await new Promise((resolve, reject) => {
         targetFolder.upload(
-          {
-            name: fileName,
-            size: file.size,
-          },
+          { name: fileName, size: file.size },
           file.buffer,
           (err: any, uploadedFile: any) => {
-            if (err) {
-              this.logger.error(`Upload error: ${err.message}`);
-              reject(err);
-            } else {
-              this.logger.log(`File uploaded successfully: ${fileName}`);
-              resolve(uploadedFile);
-            }
+            if (err) reject(err);
+            else resolve(uploadedFile);
           },
         );
       });
 
       const shareLink: string = await new Promise((resolve, reject) => {
         uploadResult.link((err: any, url: string) => {
-          if (err) {
-            this.logger.error(`Error generating share link: ${err.message}`);
-            reject(err);
-          } else {
-            this.logger.log(`Share link generated successfully`);
-            resolve(url);
-          }
+          if (err) reject(err);
+          else resolve(url);
         });
       });
 
-      return {
-        url: shareLink,
-        storageName: fileName,
-      };
+      return { url: shareLink, storageName: fileName };
     }, 'Upload file');
   }
 
   async listFiles(folderPath?: string): Promise<FileListItem[]> {
     return this.executeWithErrorHandling(async () => {
-      const storage = await this.getMegaStorage();
+      let storage: megajs.Storage;
+      try {
+        storage = await this.getMegaStorage();
+      } catch (error) {
+        this.invalidateSession();
+        throw error;
+      }
+
       const targetFolder = await this.navigateToFolder(storage, folderPath);
 
       return targetFolder.children.map((item: any) => ({
         name: item.name,
         size: item.directory ? '-' : item.size,
-        contentType: item.directory
-          ? 'folder'
-          : FileValidationPipe.getMimeType(item.name),
+        contentType: item.directory ? 'folder' : FileValidationPipe.getMimeType(item.name),
         created: new Date(item.timestamp * 1000).toISOString(),
         path: folderPath ? `${folderPath}/${item.name}` : item.name,
         isFolder: item.directory,
@@ -186,12 +194,19 @@ constructor(
 
   async downloadFile(fileId: string, folderPath?: string): Promise<Buffer> {
     return this.executeWithErrorHandling(async () => {
-      const storage = await this.getMegaStorage();
-      const targetFolder = await this.navigateToFolder(storage, folderPath);
+      let storage: megajs.Storage;
+      try {
+        storage = await this.getMegaStorage();
+      } catch (error) {
+        this.invalidateSession();
+        throw error;
+      }
 
+      const targetFolder = await this.navigateToFolder(storage, folderPath);
       const targetFile = targetFolder.children.find(
         (item: any) => item.name === fileId,
       );
+
       if (!targetFile) {
         throw new BadRequestException(`File '${fileId}' not found`);
       }
@@ -207,9 +222,15 @@ constructor(
 
   async deleteFile(fileId: string, folderPath?: string): Promise<void> {
     return this.executeWithErrorHandling(async () => {
-      const storage = await this.getMegaStorage();
-      const targetFolder = await this.navigateToFolder(storage, folderPath);
+      let storage: megajs.Storage;
+      try {
+        storage = await this.getMegaStorage();
+      } catch (error) {
+        this.invalidateSession();
+        throw error;
+      }
 
+      const targetFolder = await this.navigateToFolder(storage, folderPath);
       const targetFile = targetFolder.children.find(
         (item: any) => item.name === fileId,
       );
@@ -231,16 +252,30 @@ constructor(
     this.validateFolderPath(folderPath);
 
     return this.executeWithErrorHandling(async () => {
-      const storage = await this.getMegaStorage();
+      let storage: megajs.Storage;
+      try {
+        storage = await this.getMegaStorage();
+      } catch (error) {
+        this.invalidateSession();
+        throw error;
+      }
+
       await this.createFolderPath(storage, folderPath);
-    }, 'Create Folder');
+    }, 'Create folder');
   }
 
   async deleteFolder(folderPath: string): Promise<void> {
     this.validateFolderPath(folderPath);
 
     return this.executeWithErrorHandling(async () => {
-      const storage = await this.getMegaStorage();
+      let storage: megajs.Storage;
+      try {
+        storage = await this.getMegaStorage();
+      } catch (error) {
+        this.invalidateSession();
+        throw error;
+      }
+
       const targetFolder = await this.navigateToFolder(storage, folderPath);
 
       await new Promise<void>((resolve, reject) => {
