@@ -357,3 +357,15 @@ export class BulkUploadMetadataDto {
   @IsObject()
   defaultMetadata?: Record<string, any>;
 }
+
+export class AddTagsToFileDto {
+  @ApiProperty({
+    description: 'Array of tag IDs to attach to the file',
+    example: ['clp1234567890abcdef', 'clp0987654321fedcba'],
+    type: [String],
+  })
+  @IsArray()
+  @ArrayMinSize(1, { message: 'At least one tag ID must be provided' })
+  @IsString({ each: true })
+  tagIds: string[];
+}
