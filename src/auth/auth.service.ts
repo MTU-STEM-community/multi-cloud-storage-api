@@ -1,4 +1,9 @@
-import { Injectable, UnauthorizedException } from '@nestjs/common';
+import {
+  Injectable,
+  UnauthorizedException,
+  NotFoundException,
+  ConflictException,
+} from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import { PrismaService } from '../prisma/prisma.service';
 import * as bcrypt from 'bcryptjs';
@@ -34,19 +39,19 @@ export class AuthService {
   ) {}
 
   async validateUser(username: string, password: string): Promise<any> {
-    const user = await this.prisma.user.findUnique({
-      where: { username },
-    });
+    const user = await this.prisma.user.findUnique({ where: { username } });
 
     if (user && user.isActive && (await bcrypt.compare(password, user.password))) {
       const { password: _, ...result } = user;
       return result;
     }
+
     return null;
   }
 
   async login(loginDto: LoginDto) {
     const user = await this.validateUser(loginDto.username, loginDto.password);
+
     if (!user) {
       throw new UnauthorizedException('Invalid credentials');
     }
@@ -68,7 +73,6 @@ export class AuthService {
   }
 
   async register(registerDto: RegisterDto) {
-    // Check if user already exists
     const existingUser = await this.prisma.user.findFirst({
       where: {
         OR: [
@@ -79,14 +83,11 @@ export class AuthService {
     });
 
     if (existingUser) {
-      throw new UnauthorizedException('Username or email already exists');
+      throw new ConflictException('Username or email already exists');
     }
 
-    // Hash password
-    const saltRounds = 10;
-    const hashedPassword = await bcrypt.hash(registerDto.password, saltRounds);
+    const hashedPassword = await bcrypt.hash(registerDto.password, 10);
 
-    // Create user
     const user = await this.prisma.user.create({
       data: {
         username: registerDto.username,
@@ -100,28 +101,24 @@ export class AuthService {
   }
 
   async findUserById(id: string): Promise<User | null> {
-    return this.prisma.user.findUnique({
-      where: { id },
-    });
+    return this.prisma.user.findUnique({ where: { id } });
   }
 
   async findUserByUsername(username: string): Promise<User | null> {
-    return this.prisma.user.findUnique({
-      where: { username },
-    });
+    return this.prisma.user.findUnique({ where: { username } });
   }
 
   async changePassword(userId: string, changePasswordDto: ChangePasswordDto) {
-    // Get user with password for verification
-    const user = await this.prisma.user.findUnique({
-      where: { id: userId },
-    });
+    const user = await this.prisma.user.findUnique({ where: { id: userId } });
 
-    if (!user || !user.isActive) {
-      throw new UnauthorizedException('User not found or inactive');
+    if (!user) {
+      throw new NotFoundException('User not found');
     }
 
-    // Verify current password
+    if (!user.isActive) {
+      throw new UnauthorizedException('Account is inactive');
+    }
+
     const isCurrentPasswordValid = await bcrypt.compare(
       changePasswordDto.currentPassword,
       user.password,
@@ -131,14 +128,8 @@ export class AuthService {
       throw new UnauthorizedException('Current password is incorrect');
     }
 
-    // Hash new password
-    const saltRounds = 10;
-    const hashedNewPassword = await bcrypt.hash(
-      changePasswordDto.newPassword,
-      saltRounds,
-    );
+    const hashedNewPassword = await bcrypt.hash(changePasswordDto.newPassword, 10);
 
-    // Update password
     await this.prisma.user.update({
       where: { id: userId },
       data: { password: hashedNewPassword },
