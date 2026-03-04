@@ -2,6 +2,7 @@ import { NestFactory } from '@nestjs/core';
 import { AppModule } from './app.module';
 import { ValidationPipe } from '@nestjs/common';
 import helmet from 'helmet';
+import * as express from 'express';
 import { CloudStorageFilter } from './common/filters/cloud-storage.filter';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 import { PerformanceInterceptor } from './monitoring/performance.interceptor';
@@ -14,6 +15,9 @@ async function bootstrap() {
       crossOriginResourcePolicy: { policy: 'cross-origin' },
     }),
   );
+
+  app.use(express.json({ limit: '1mb' }));
+  app.use(express.urlencoded({ extended: true, limit: '1mb' }));
 
   app.useGlobalPipes(
     new ValidationPipe({

@@ -54,7 +54,14 @@ export class StorageController {
 
   @Post('upload/:provider')
   @ApiUploadFile()
-  @UseInterceptors(FileInterceptor('file'))
+  @UseInterceptors(
+    FileInterceptor('file', {
+      limits: {
+        fileSize: 10 * 1024 * 1024,
+        files: 1,
+      },
+    }),
+  )
   async uploadFile(
     @UploadedFile(FileValidationPipe) file: Express.Multer.File,
     @Param('provider') provider: string,
@@ -188,7 +195,14 @@ export class StorageController {
 
   @Post('bulk-upload')
   @ApiBulkUploadFiles()
-  @UseInterceptors(FilesInterceptor('files', 20)) // Max 20 files
+  @UseInterceptors(
+    FilesInterceptor('files', 20, {
+      limits: {
+        fileSize: 10 * 1024 * 1024,
+        files: 20,
+      },
+    }),
+  )
   async bulkUploadFiles(
     @UploadedFiles() files: Express.Multer.File[],
     @Body() metadata: BulkUploadMetadataDto,
@@ -210,7 +224,14 @@ export class StorageController {
 
   @Post('multi-provider-upload')
   @ApiMultiProviderUpload()
-  @UseInterceptors(FileInterceptor('file'))
+  @UseInterceptors(
+    FileInterceptor('file', {
+      limits: {
+        fileSize: 10 * 1024 * 1024,
+        files: 1,
+      },
+    }),
+  )
   async uploadFileToMultipleProviders(
     @UploadedFile(FileValidationPipe) file: Express.Multer.File,
     @Body() uploadData: MultiProviderUploadDto,
