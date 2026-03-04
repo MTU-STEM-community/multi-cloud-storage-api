@@ -1,4 +1,8 @@
-import { Injectable, BadRequestException } from '@nestjs/common';
+import {
+  Injectable,
+  BadRequestException,
+  NotFoundException,
+} from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { PrismaService } from '../../prisma/prisma.service';
 import { EncryptionService } from '../../utils/encryption.util';
@@ -150,8 +154,8 @@ export class BackblazeService extends BaseCloudStorageProvider {
 
       if (!bucket) {
         const bucketNames = data.buckets.map((b: any) => b.bucketName);
-        throw new BadRequestException(
-          `Bucket '${bucketName}' not found. Available buckets: ${bucketNames.join(', ')}`,
+        throw new NotFoundException(
+          `Bucket '${bucketName}' not found. Available: ${bucketNames.join(', ')}`,
         );
       }
 
@@ -319,7 +323,7 @@ export class BackblazeService extends BaseCloudStorageProvider {
       );
 
       if (!fileInfo) {
-        throw new BadRequestException(`File '${fileId}' not found`);
+        throw new NotFoundException(`File '${fileId}' not found`);
       }
 
       const downloadResponse = await fetch(
@@ -377,7 +381,7 @@ export class BackblazeService extends BaseCloudStorageProvider {
       );
 
       if (!fileInfo) {
-        throw new BadRequestException(`File '${fileId}' not found`);
+        throw new NotFoundException(`File '${fileId}' not found`);
       }
 
       const deleteResponse = await fetch(
