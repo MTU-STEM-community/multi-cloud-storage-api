@@ -8,13 +8,8 @@ import { GoogleDriveService } from '../../providers/google-drive/google-drive.se
 import { BackblazeService } from '../../providers/backblaze/backblaze.service';
 import { OneDriveService } from '../../providers/onedrive/onedrive.service';
 
-/**
- * Factory service for cloud storage providers
- * Eliminates massive switch statements by using dynamic provider resolution
- */
 @Injectable()
 export class CloudStorageFactoryService {
-  // Map of provider names to their service classes
   private readonly providerMap = new Map<string, any>([
     ['google-cloud', GoogleCloudService],
     ['dropbox', DropboxService],
@@ -36,10 +31,9 @@ export class CloudStorageFactoryService {
     }
 
     try {
-      const provider = await this.moduleRef.get(serviceClass, {
+      return (await this.moduleRef.get(serviceClass, {
         strict: false,
-      });
-      return provider as CloudStorageProvider;
+      })) as CloudStorageProvider;
     } catch (error) {
       throw new BadRequestException(
         `Failed to initialize provider ${providerName}: ${error.message}`,
@@ -47,16 +41,7 @@ export class CloudStorageFactoryService {
     }
   }
 
-  // Currently unused functions
   getSupportedProviders(): string[] {
     return Array.from(this.providerMap.keys());
-  }
-
-  isProviderSupported(providerName: string): boolean {
-    return this.providerMap.has(providerName);
-  }
-
-  registerProvider(providerName: string, serviceClass: any): void {
-    this.providerMap.set(providerName, serviceClass);
   }
 }

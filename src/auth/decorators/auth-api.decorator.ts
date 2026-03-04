@@ -120,7 +120,10 @@ export const ApiRegister = () =>
         type: 'object',
         properties: {
           statusCode: { type: 'number', example: 401 },
-          message: { type: 'string', example: 'Username or email already exists' },
+          message: {
+            type: 'string',
+            example: 'Username or email already exists',
+          },
         },
       },
     }),

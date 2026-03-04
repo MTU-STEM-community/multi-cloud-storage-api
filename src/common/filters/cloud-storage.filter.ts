@@ -9,9 +9,9 @@ import { BaseExceptionFilter } from '@nestjs/core';
 import { Response } from 'express';
 
 @Catch()
-@Catch()
 export class CloudStorageFilter extends BaseExceptionFilter {
   private readonly logger = new Logger(CloudStorageFilter.name);
+
   catch(exception: unknown, host: ArgumentsHost) {
     const ctx = host.switchToHttp();
     const response = ctx.getResponse<Response>();

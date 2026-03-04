@@ -35,6 +35,7 @@ import {
   ApiBulkUploadFiles,
   ApiMultiProviderUpload,
   ApiMultiProviderDelete,
+  ApiAddTagsToFile,
 } from './decorators/storage-api.decorator';
 import {
   UpdateFileMetadataDto,
@@ -44,6 +45,7 @@ import {
   MultiProviderUploadDto,
   MultiProviderDeleteDto,
   BulkUploadMetadataDto,
+  AddTagsToFileDto,
 } from './dto/file-metadata.dto';
 
 @ApiTags('storage')
@@ -54,7 +56,14 @@ export class StorageController {
 
   @Post('upload/:provider')
   @ApiUploadFile()
-  @UseInterceptors(FileInterceptor('file'))
+  @UseInterceptors(
+    FileInterceptor('file', {
+      limits: {
+        fileSize: 10 * 1024 * 1024,
+        files: 1,
+      },
+    }),
+  )
   async uploadFile(
     @UploadedFile(FileValidationPipe) file: Express.Multer.File,
     @Param('provider') provider: string,
@@ -156,16 +165,16 @@ export class StorageController {
     return this.storageService.updateFileMetadata(fileId, updateData);
   }
 
-  @Get('files/:fileId')
-  @ApiGetFileById()
-  async getFileById(@Param('fileId') fileId: string) {
-    return this.storageService.getFileById(fileId);
-  }
-
   @Get('files/search')
   @ApiSearchFiles()
   async searchFiles(@Query() searchParams: FileSearchDto) {
     return this.storageService.searchFiles(searchParams);
+  }
+
+  @Get('files/:fileId')
+  @ApiGetFileById()
+  async getFileById(@Param('fileId') fileId: string) {
+    return this.storageService.getFileById(fileId);
   }
 
   @Delete('files/bulk')
@@ -186,9 +195,25 @@ export class StorageController {
     return this.storageService.getAllFileTags();
   }
 
+  @Post('files/:fileId/tags')
+  @ApiAddTagsToFile()
+  async addTagsToFile(
+    @Param('fileId') fileId: string,
+    @Body() dto: AddTagsToFileDto,
+  ) {
+    return this.storageService.addTagsToFile(fileId, dto);
+  }
+
   @Post('bulk-upload')
   @ApiBulkUploadFiles()
-  @UseInterceptors(FilesInterceptor('files', 20)) // Max 20 files
+  @UseInterceptors(
+    FilesInterceptor('files', 20, {
+      limits: {
+        fileSize: 10 * 1024 * 1024,
+        files: 20,
+      },
+    }),
+  )
   async bulkUploadFiles(
     @UploadedFiles() files: Express.Multer.File[],
     @Body() metadata: BulkUploadMetadataDto,
@@ -210,7 +235,14 @@ export class StorageController {
 
   @Post('multi-provider-upload')
   @ApiMultiProviderUpload()
-  @UseInterceptors(FileInterceptor('file'))
+  @UseInterceptors(
+    FileInterceptor('file', {
+      limits: {
+        fileSize: 10 * 1024 * 1024,
+        files: 1,
+      },
+    }),
+  )
   async uploadFileToMultipleProviders(
     @UploadedFile(FileValidationPipe) file: Express.Multer.File,
     @Body() uploadData: MultiProviderUploadDto,

@@ -1,4 +1,8 @@
-import { Injectable, BadRequestException } from '@nestjs/common';
+import {
+  Injectable,
+  BadRequestException,
+  NotFoundException,
+} from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { PrismaService } from '../../prisma/prisma.service';
 import { EncryptionService } from '../../utils/encryption.util';
@@ -8,6 +12,7 @@ import { OAuth2Client } from 'google-auth-library';
 import { google } from 'googleapis';
 import { Readable } from 'stream';
 import { BaseCloudStorageProvider } from '../../common/providers/base-cloud-storage.provider';
+import { ProviderConfigService } from 'src/common/providers/provider-config.service';
 
 @Injectable()
 export class GoogleDriveService extends BaseCloudStorageProvider {
@@ -15,8 +20,15 @@ export class GoogleDriveService extends BaseCloudStorageProvider {
     configService: ConfigService,
     prisma: PrismaService,
     encryptionService: EncryptionService,
+    providerConfigService: ProviderConfigService,
   ) {
-    super(configService, prisma, encryptionService, 'GoogleDrive');
+    super(
+      configService,
+      prisma,
+      encryptionService,
+      providerConfigService,
+      'GoogleDrive',
+    );
   }
 
   protected validateConfiguration(): void {
@@ -187,7 +199,7 @@ export class GoogleDriveService extends BaseCloudStorageProvider {
         if (response.data.files && response.data.files.length > 0) {
           driveFileId = response.data.files[0].id;
         } else {
-          throw new BadRequestException(
+          throw new NotFoundException(
             `File '${fileId}' not found in ${folderPath}`,
           );
         }
@@ -224,7 +236,7 @@ export class GoogleDriveService extends BaseCloudStorageProvider {
         if (response.data.files && response.data.files.length > 0) {
           driveFileId = response.data.files[0].id;
         } else {
-          throw new BadRequestException(
+          throw new NotFoundException(
             `File '${fileId}' not found in ${folderPath}`,
           );
         }
