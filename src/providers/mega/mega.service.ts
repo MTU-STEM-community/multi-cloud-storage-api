@@ -1,4 +1,4 @@
-import { Injectable, BadRequestException } from '@nestjs/common';
+import { Injectable, BadRequestException, NotFoundException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { PrismaService } from '../../prisma/prisma.service';
 import { EncryptionService } from '../../utils/encryption.util';
@@ -88,7 +88,7 @@ export class MegaService extends BaseCloudStorageProvider {
         }
 
         if (!found) {
-          throw new Error(`Folder '${folderPath}' not found`);
+          throw new NotFoundException(`Folder '${folderPath}' not found`);
         }
       }
     }
@@ -208,7 +208,7 @@ export class MegaService extends BaseCloudStorageProvider {
       );
 
       if (!targetFile) {
-        throw new BadRequestException(`File '${fileId}' not found`);
+        throw new NotFoundException(`File '${fileId}' not found`);
       }
 
       return new Promise((resolve, reject) => {
