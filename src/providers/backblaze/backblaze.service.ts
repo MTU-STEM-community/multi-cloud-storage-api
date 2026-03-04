@@ -6,18 +6,20 @@ import { FileListItem } from '../../common/interfaces/cloud-storage.interface';
 import { FileValidationPipe } from '../../common/pipes/file-validation.pipe';
 import * as crypto from 'crypto';
 import { BaseCloudStorageProvider } from '../../common/providers/base-cloud-storage.provider';
+import { ProviderConfigService } from 'src/common/providers/provider-config.service';
 
 @Injectable()
 export class BackblazeService extends BaseCloudStorageProvider {
   private readonly B2_API_URL = 'https://api.backblazeb2.com';
 
-  constructor(
-    configService: ConfigService,
-    prisma: PrismaService,
-    encryptionService: EncryptionService,
-  ) {
-    super(configService, prisma, encryptionService, 'Backblaze');
-  }
+constructor(
+  configService: ConfigService,
+  prisma: PrismaService,
+  encryptionService: EncryptionService,
+  providerConfigService: ProviderConfigService,
+) {
+  super(configService, prisma, encryptionService, providerConfigService, 'Backblaze');
+}
 
   protected validateConfiguration(): void {
     this.providerConfigService.getBackblazeConfig();

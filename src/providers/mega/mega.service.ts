@@ -6,16 +6,18 @@ import { FileListItem } from '../../common/interfaces/cloud-storage.interface';
 import * as megajs from 'megajs';
 import { FileValidationPipe } from '../../common/pipes/file-validation.pipe';
 import { BaseCloudStorageProvider } from '../../common/providers/base-cloud-storage.provider';
+import { ProviderConfigService } from 'src/common/providers/provider-config.service';
 
 @Injectable()
 export class MegaService extends BaseCloudStorageProvider {
-  constructor(
-    configService: ConfigService,
-    prisma: PrismaService,
-    encryptionService: EncryptionService,
-  ) {
-    super(configService, prisma, encryptionService, 'Mega');
-  }
+constructor(
+  configService: ConfigService,
+  prisma: PrismaService,
+  encryptionService: EncryptionService,
+  providerConfigService: ProviderConfigService,
+) {
+  super(configService, prisma, encryptionService, providerConfigService, 'Mega');
+}
 
   protected validateConfiguration(): void {
     this.providerConfigService.getMegaConfig();

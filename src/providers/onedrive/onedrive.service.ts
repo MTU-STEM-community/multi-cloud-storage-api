@@ -6,18 +6,20 @@ import { BaseCloudStorageProvider } from '../../common/providers/base-cloud-stor
 import { FileListItem } from '../../common/interfaces/cloud-storage.interface';
 import { FileValidationPipe } from '../../common/pipes/file-validation.pipe';
 import axios from 'axios';
+import { ProviderConfigService } from 'src/common/providers/provider-config.service';
 
 @Injectable()
 export class OneDriveService extends BaseCloudStorageProvider {
   private readonly baseUrl = 'https://graph.microsoft.com/v1.0/me/drive';
 
-  constructor(
-    configService: ConfigService,
-    prisma: PrismaService,
-    encryptionService: EncryptionService,
-  ) {
-    super(configService, prisma, encryptionService, 'OneDrive');
-  }
+constructor(
+  configService: ConfigService,
+  prisma: PrismaService,
+  encryptionService: EncryptionService,
+  providerConfigService: ProviderConfigService,
+) {
+  super(configService, prisma, encryptionService, providerConfigService, 'OneDrive');
+}
 
   protected validateConfiguration(): void {
     this.providerConfigService.getOneDriveConfig();

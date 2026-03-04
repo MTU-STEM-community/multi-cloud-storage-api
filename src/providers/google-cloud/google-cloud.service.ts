@@ -5,16 +5,18 @@ import { EncryptionService } from '../../utils/encryption.util';
 import { FileListItem } from '../../common/interfaces/cloud-storage.interface';
 import { BaseCloudStorageProvider } from '../../common/providers/base-cloud-storage.provider';
 import { Storage } from '@google-cloud/storage';
+import { ProviderConfigService } from 'src/common/providers/provider-config.service';
 
 @Injectable()
 export class GoogleCloudService extends BaseCloudStorageProvider {
-  constructor(
-    configService: ConfigService,
-    prisma: PrismaService,
-    encryptionService: EncryptionService,
-  ) {
-    super(configService, prisma, encryptionService, 'GoogleCloud');
-  }
+constructor(
+  configService: ConfigService,
+  prisma: PrismaService,
+  encryptionService: EncryptionService,
+  providerConfigService: ProviderConfigService,
+) {
+  super(configService, prisma, encryptionService, providerConfigService, 'GoogleCloud');
+}
 
   protected validateConfiguration(): void {
     this.providerConfigService.getGoogleCloudConfig();

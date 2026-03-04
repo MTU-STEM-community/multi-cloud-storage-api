@@ -5,6 +5,7 @@ import { EncryptionService } from '../../utils/encryption.util';
 import { Dropbox } from 'dropbox';
 import { BaseCloudStorageProvider } from '../../common/providers/base-cloud-storage.provider';
 import { FileListItem } from '../../common/interfaces/cloud-storage.interface';
+import { ProviderConfigService } from 'src/common/providers/provider-config.service';
 
 @Injectable()
 export class DropboxService extends BaseCloudStorageProvider {
@@ -12,8 +13,9 @@ export class DropboxService extends BaseCloudStorageProvider {
     configService: ConfigService,
     prisma: PrismaService,
     encryptionService: EncryptionService,
+    providerConfigService: ProviderConfigService,
   ) {
-    super(configService, prisma, encryptionService, 'Dropbox');
+    super(configService, prisma, encryptionService, providerConfigService, 'Dropbox');
   }
 
   protected validateConfiguration(): void {

@@ -8,16 +8,18 @@ import { OAuth2Client } from 'google-auth-library';
 import { google } from 'googleapis';
 import { Readable } from 'stream';
 import { BaseCloudStorageProvider } from '../../common/providers/base-cloud-storage.provider';
+import { ProviderConfigService } from 'src/common/providers/provider-config.service';
 
 @Injectable()
 export class GoogleDriveService extends BaseCloudStorageProvider {
-  constructor(
-    configService: ConfigService,
-    prisma: PrismaService,
-    encryptionService: EncryptionService,
-  ) {
-    super(configService, prisma, encryptionService, 'GoogleDrive');
-  }
+constructor(
+  configService: ConfigService,
+  prisma: PrismaService,
+  encryptionService: EncryptionService,
+  providerConfigService: ProviderConfigService,
+) {
+  super(configService, prisma, encryptionService, providerConfigService, 'GoogleDrive');
+}
 
   protected validateConfiguration(): void {
     this.providerConfigService.getGoogleDriveConfig();
