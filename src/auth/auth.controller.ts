@@ -13,7 +13,12 @@ import { AuthService, LoginDto, RegisterDto, ChangePasswordDto } from './auth.se
 import { JwtAuthGuard } from './guards/jwt-auth.guard';
 import { Public } from './decorators/public.decorator';
 import { AuthThrottle } from './decorators/throttle.decorator';
-import { ApiLogin, ApiRegister, ApiGetProfile, ApiChangePassword } from './decorators/auth-api.decorator';
+import {
+  ApiLogin,
+  ApiRegister,
+  ApiGetProfile,
+  ApiChangePassword,
+} from './decorators/auth-api.decorator';
 
 @ApiTags('Authentication')
 @Controller('auth')
@@ -47,7 +52,10 @@ export class AuthController {
   @Post('change-password')
   @UseGuards(JwtAuthGuard)
   @ApiChangePassword()
-  async changePassword(@Request() req: any, @Body() changePasswordDto: ChangePasswordDto) {
+  async changePassword(
+    @Request() req: any,
+    @Body() changePasswordDto: ChangePasswordDto,
+  ) {
     return this.authService.changePassword(req.user.id, changePasswordDto);
   }
 }
