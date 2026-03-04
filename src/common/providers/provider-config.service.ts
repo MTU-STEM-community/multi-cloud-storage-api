@@ -1,17 +1,10 @@
 import { Injectable, BadRequestException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 
-/**
- * Centralized configuration management for cloud storage providers
- * Eliminates duplicated configuration validation across providers
- */
 @Injectable()
 export class ProviderConfigService {
   constructor(private readonly configService: ConfigService) {}
 
-  /**
-   * Google Cloud Storage configuration
-   */
   getGoogleCloudConfig() {
     const config = {
       projectId: this.configService.get<string>('GOOGLE_CLOUD_PROJECT_ID'),
@@ -28,9 +21,6 @@ export class ProviderConfigService {
     return config;
   }
 
-  /**
-   * Dropbox configuration
-   */
   getDropboxConfig() {
     const config = {
       accessToken: this.configService.get<string>('DROPBOX_ACCESS_TOKEN'),
@@ -43,9 +33,6 @@ export class ProviderConfigService {
     return config;
   }
 
-  /**
-   * Mega configuration
-   */
   getMegaConfig() {
     const config = {
       email: this.configService.get<string>('MEGA_EMAIL'),
@@ -60,18 +47,11 @@ export class ProviderConfigService {
     return config;
   }
 
-  /**
-   * Google Drive configuration
-   */
   getGoogleDriveConfig() {
     const config = {
       clientId: this.configService.get<string>('GOOGLE_DRIVE_CLIENT_ID'),
-      clientSecret: this.configService.get<string>(
-        'GOOGLE_DRIVE_CLIENT_SECRET',
-      ),
-      refreshToken: this.configService.get<string>(
-        'GOOGLE_DRIVE_REFRESH_TOKEN',
-      ),
+      clientSecret: this.configService.get<string>('GOOGLE_DRIVE_CLIENT_SECRET'),
+      refreshToken: this.configService.get<string>('GOOGLE_DRIVE_REFRESH_TOKEN'),
     };
 
     this.validateRequiredConfig('Google Drive', [
@@ -83,9 +63,6 @@ export class ProviderConfigService {
     return config;
   }
 
-  /**
-   * Backblaze B2 configuration
-   */
   getBackblazeConfig() {
     const config = {
       keyId: this.configService.get<string>('B2_KEY_ID'),
@@ -102,9 +79,6 @@ export class ProviderConfigService {
     return config;
   }
 
-  /**
-   * OneDrive configuration
-   */
   getOneDriveConfig() {
     const config = {
       clientId: this.configService.get<string>('ONEDRIVE_CLIENT_ID'),
@@ -124,8 +98,7 @@ export class ProviderConfigService {
   }
 
   getEncryptionConfig() {
-    const encryptionSecret =
-      this.configService.get<string>('ENCRYPTION_SECRET');
+    const encryptionSecret = this.configService.get<string>('ENCRYPTION_SECRET');
 
     if (!encryptionSecret) {
       throw new BadRequestException(
@@ -148,26 +121,6 @@ export class ProviderConfigService {
       throw new BadRequestException(
         `${providerName} configuration is missing: ${missingKeys.join(', ')}`,
       );
-    }
-  }
-
-  // Currently unused method
-  getProviderConfig(providerName: string): any {
-    switch (providerName.toLowerCase()) {
-      case 'google-cloud':
-        return this.getGoogleCloudConfig();
-      case 'dropbox':
-        return this.getDropboxConfig();
-      case 'mega':
-        return this.getMegaConfig();
-      case 'google-drive':
-        return this.getGoogleDriveConfig();
-      case 'backblaze':
-        return this.getBackblazeConfig();
-      case 'onedrive':
-        return this.getOneDriveConfig();
-      default:
-        throw new BadRequestException(`Unsupported provider: ${providerName}`);
     }
   }
 }
