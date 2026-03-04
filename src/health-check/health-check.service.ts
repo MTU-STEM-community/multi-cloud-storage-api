@@ -167,12 +167,14 @@ export class HealthCheckService {
 
   private async checkProviders() {
     try {
-      const providers = [
-        'dropbox',
-        'mega',
-        'google-drive',
-        'backblaze',
-      ];
+    const providers = [
+      'google-cloud',
+      'dropbox',
+      'mega',
+      'google-drive',
+      'backblaze',
+      'onedrive',
+    ];
       const providerChecks = await Promise.allSettled(
         providers.map(async (provider) => {
           try {
