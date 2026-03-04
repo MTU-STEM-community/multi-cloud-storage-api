@@ -617,3 +617,43 @@ export const ApiMultiProviderDelete = () =>
     }),
     ApiStandardResponses(),
   );
+
+  export const ApiAddTagsToFile = () =>
+  applyDecorators(
+    ApiOperation({
+      summary: 'Add tags to a file',
+      description: 'Associate one or more existing tags with a file',
+    }),
+    ApiParam({
+      name: 'fileId',
+      type: 'string',
+      description: 'File ID',
+      example: 'clp1234567890abcdef',
+    }),
+    ApiResponse({
+      status: 200,
+      description: 'Tags added successfully',
+      schema: {
+        type: 'object',
+        properties: {
+          id: { type: 'string', example: 'clp1234567890abcdef' },
+          fileTags: {
+            type: 'array',
+            items: {
+              type: 'object',
+              properties: {
+                id: { type: 'string', example: 'clp1234567890abcdef' },
+                name: { type: 'string', example: 'important' },
+                color: { type: 'string', example: '#ff0000' },
+              },
+            },
+          },
+        },
+      },
+    }),
+    ApiResponse({
+      status: 404,
+      description: 'File or one or more tags not found',
+    }),
+    ApiStandardResponses(),
+  );
