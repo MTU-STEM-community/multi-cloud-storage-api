@@ -9,6 +9,8 @@ datasource db {
 
 model File {
     id             String         @id @default(cuid())
+    userId         String?
+    user           User?          @relation(fields: [userId], references: [id], onDelete: SetNull)
     name           String
     size           Int
     type           String
@@ -28,6 +30,7 @@ model File {
     cloudStorages  CloudStorage[]
     fileTags       FileTag[]
 
+    @@index([userId])
     @@index([tags])
     @@index([metadata])
     @@index([name])
@@ -59,6 +62,7 @@ model User {
     email     String   @unique
     password  String
     isActive  Boolean  @default(true)
+    files     File[]
     createdAt DateTime @default(now())
     updatedAt DateTime @updatedAt
 
