@@ -1,34 +1,36 @@
 import {
+  BadRequestException,
+  ConflictException,
+  ForbiddenException,
   Injectable,
   Logger,
-  BadRequestException,
   NotFoundException,
-  ConflictException,
 } from '@nestjs/common';
+import { Readable } from 'stream';
 import { CloudStorageFactoryService } from '../common/providers/cloud-storage-factory.service';
+import {
+  BulkOperationResult,
+  BulkUploadResult,
+  EnhancedFileInfo,
+  FileListItem,
+  FileSearchResult,
+  FileUploadResult,
+  MultiProviderDeleteResult,
+  MultiProviderUploadResult,
+} from '../common/interfaces/cloud-storage.interface';
 import { PrismaService } from '../prisma/prisma.service';
 import { EncryptionService } from '../utils/encryption.util';
 import { ConfigService } from '@nestjs/config';
 import { CleanupService } from './services/cleanup.service';
 import {
-  FileUploadResult,
-  FileListItem,
-  EnhancedFileInfo,
-  FileSearchResult,
-  BulkOperationResult,
-  MultiProviderUploadResult,
-  BulkUploadResult,
-  MultiProviderDeleteResult,
-} from '../common/interfaces/cloud-storage.interface';
-import {
-  UpdateFileMetadataDto,
-  FileSearchDto,
-  BulkDeleteDto,
-  CreateFileTagDto,
   AddTagsToFileDto,
-  MultiProviderUploadDto,
-  MultiProviderDeleteDto,
+  BulkDeleteDto,
   BulkUploadMetadataDto,
+  CreateFileTagDto,
+  FileSearchDto,
+  MultiProviderDeleteDto,
+  MultiProviderUploadDto,
+  UpdateFileMetadataDto,
 } from './dto/file-metadata.dto';
 
 @Injectable()
@@ -46,6 +48,7 @@ export class StorageService {
   async uploadFileToProvider(
     file: Express.Multer.File,
     provider: string,
+    userId: string,
     folderPath?: string,
   ): Promise<FileUploadResult> {
     if (!file || !file.buffer) {
@@ -70,6 +73,7 @@ export class StorageService {
       uploadResult.url,
       storageName,
       folderPath,
+      userId,
     );
 
     return {
@@ -94,7 +98,8 @@ export class StorageService {
   async downloadFileFromProvider(
     provider: string,
     fileId: string,
-  ): Promise<Buffer> {
+    requestingUserId: string,
+  ): Promise<Readable> {
     const file = await this.prisma.file.findUnique({
       where: { id: fileId },
       include: { cloudStorages: true },
@@ -102,6 +107,10 @@ export class StorageService {
 
     if (!file) {
       throw new NotFoundException(`File '${fileId}' not found`);
+    }
+
+    if (!file.isPublic && file.userId && file.userId !== requestingUserId) {
+      throw new ForbiddenException('You do not have access to this file');
     }
 
     const hasProvider = file.cloudStorages.some(
@@ -114,13 +123,16 @@ export class StorageService {
       );
     }
 
-    await this.prisma.file.update({
-      where: { id: fileId },
-      data: {
-        downloadCount: { increment: 1 },
-        lastAccessedAt: new Date(),
-      },
-    });
+    this.prisma.file
+      .update({
+        where: { id: fileId },
+        data: { downloadCount: { increment: 1 }, lastAccessedAt: new Date() },
+      })
+      .catch((err) => {
+        this.logger.warn(
+          `Failed to update download stats for file ${fileId}: ${err.message}`,
+        );
+      });
 
     const storageProvider =
       await this.cloudStorageFactory.getProvider(provider);
@@ -130,6 +142,7 @@ export class StorageService {
   async deleteFileFromProvider(
     provider: string,
     fileId: string,
+    requestingUserId: string,
   ): Promise<void> {
     const file = await this.prisma.file.findUnique({
       where: { id: fileId },
@@ -138,6 +151,12 @@ export class StorageService {
 
     if (!file) {
       throw new NotFoundException(`File '${fileId}' not found`);
+    }
+
+    if (file.userId && file.userId !== requestingUserId) {
+      throw new ForbiddenException(
+        'You do not have permission to delete this file',
+      );
     }
 
     const cloudStorage = file.cloudStorages.find(
@@ -154,18 +173,20 @@ export class StorageService {
       await this.cloudStorageFactory.getProvider(provider);
     await storageProvider.deleteFile(file.storageName, file.path);
 
-    await this.prisma.cloudStorage.delete({ where: { id: cloudStorage.id } });
+    await this.prisma.$transaction(async (tx) => {
+      await tx.cloudStorage.delete({ where: { id: cloudStorage.id } });
 
-    const remainingStorages = await this.prisma.cloudStorage.count({
-      where: { files: { some: { id: fileId } } },
-    });
-
-    if (remainingStorages === 0) {
-      await this.prisma.file.update({
-        where: { id: fileId },
-        data: { deletedAt: new Date() },
+      const remaining = await tx.cloudStorage.count({
+        where: { files: { some: { id: fileId } } },
       });
-    }
+
+      if (remaining === 0) {
+        await tx.file.update({
+          where: { id: fileId },
+          data: { deletedAt: new Date() },
+        });
+      }
+    });
 
     this.logger.log(`File deleted from ${provider}: ${file.name}`);
   }
@@ -202,6 +223,7 @@ export class StorageService {
   async updateFileMetadata(
     fileId: string,
     updateData: UpdateFileMetadataDto,
+    requestingUserId: string,
   ): Promise<EnhancedFileInfo> {
     const existing = await this.prisma.file.findUnique({
       where: { id: fileId },
@@ -211,48 +233,66 @@ export class StorageService {
       throw new NotFoundException(`File '${fileId}' not found`);
     }
 
+    if (existing.userId && existing.userId !== requestingUserId) {
+      throw new ForbiddenException(
+        'You do not have permission to update this file',
+      );
+    }
+
     const updatedFile = await this.prisma.file.update({
       where: { id: fileId },
       data: {
         description: updateData.description,
         tags: updateData.tags,
-        metadata: updateData.metadata || {},
+        metadata: updateData.metadata ?? {},
         isPublic: updateData.isPublic,
         expiresAt: updateData.expiresAt
           ? new Date(updateData.expiresAt)
           : undefined,
       },
-      include: {
-        cloudStorages: true,
-        fileTags: true,
-      },
+      include: { cloudStorages: true, fileTags: true },
     });
 
     return this.mapToEnhancedFileInfo(updatedFile);
   }
 
-  async getFileById(fileId: string): Promise<EnhancedFileInfo> {
+  async getFileById(
+    fileId: string,
+    requestingUserId?: string,
+  ): Promise<EnhancedFileInfo> {
     const file = await this.prisma.file.findUnique({
       where: { id: fileId },
-      include: {
-        cloudStorages: true,
-        fileTags: true,
-      },
+      include: { cloudStorages: true, fileTags: true },
     });
 
     if (!file) {
       throw new NotFoundException(`File '${fileId}' not found`);
     }
 
-    await this.prisma.file.update({
-      where: { id: fileId },
-      data: { lastAccessedAt: new Date() },
-    });
+    if (
+      !file.isPublic &&
+      file.userId &&
+      requestingUserId &&
+      file.userId !== requestingUserId
+    ) {
+      throw new ForbiddenException('You do not have access to this file');
+    }
+
+    this.prisma.file
+      .update({ where: { id: fileId }, data: { lastAccessedAt: new Date() } })
+      .catch((err) => {
+        this.logger.warn(
+          `Failed to update lastAccessedAt for file ${fileId}: ${err.message}`,
+        );
+      });
 
     return this.mapToEnhancedFileInfo(file);
   }
 
-  async searchFiles(searchParams: FileSearchDto): Promise<FileSearchResult> {
+  async searchFiles(
+    searchParams: FileSearchDto,
+    userId: string,
+  ): Promise<FileSearchResult> {
     const {
       page = 1,
       limit = 20,
@@ -263,7 +303,10 @@ export class StorageService {
 
     const skip = (page - 1) * limit;
 
-    const where: any = { deletedAt: null };
+    const where: any = {
+      deletedAt: null,
+      OR: [{ userId }, { isPublic: true }],
+    };
 
     if (filters.name) {
       where.name = { contains: filters.name, mode: 'insensitive' };
@@ -307,6 +350,7 @@ export class StorageService {
 
   async bulkDeleteFiles(
     bulkDeleteData: BulkDeleteDto,
+    requestingUserId: string,
   ): Promise<BulkOperationResult> {
     const result: BulkOperationResult = {
       successful: 0,
@@ -328,6 +372,12 @@ export class StorageService {
           continue;
         }
 
+        if (file.userId && file.userId !== requestingUserId) {
+          result.failed++;
+          result.errors.push({ fileId, error: 'Permission denied' });
+          continue;
+        }
+
         if (bulkDeleteData.provider && file.storageName) {
           try {
             const storageProvider = await this.cloudStorageFactory.getProvider(
@@ -336,14 +386,19 @@ export class StorageService {
             await storageProvider.deleteFile(file.storageName, file.path);
           } catch (cloudError) {
             this.logger.warn(
-              `Failed to delete from cloud: ${cloudError.message}`,
+              `Failed to delete file ${fileId} from cloud: ${cloudError.message}`,
             );
           }
         }
 
-        await this.prisma.file.update({
-          where: { id: fileId },
-          data: { deletedAt: new Date() },
+        await this.prisma.$transaction(async (tx) => {
+          await tx.cloudStorage.deleteMany({
+            where: { files: { some: { id: fileId } } },
+          });
+          await tx.file.update({
+            where: { id: fileId },
+            data: { deletedAt: new Date() },
+          });
         });
 
         result.successful++;
@@ -372,11 +427,21 @@ export class StorageService {
     return this.prisma.fileTag.findMany({ orderBy: { name: 'asc' } });
   }
 
-  async addTagsToFile(fileId: string, dto: AddTagsToFileDto) {
+  async addTagsToFile(
+    fileId: string,
+    dto: AddTagsToFileDto,
+    requestingUserId: string,
+  ) {
     const file = await this.prisma.file.findUnique({ where: { id: fileId } });
 
     if (!file) {
       throw new NotFoundException(`File '${fileId}' not found`);
+    }
+
+    if (file.userId && file.userId !== requestingUserId) {
+      throw new ForbiddenException(
+        'You do not have permission to modify this file',
+      );
     }
 
     const tags = await this.prisma.fileTag.findMany({
@@ -391,9 +456,7 @@ export class StorageService {
 
     return this.prisma.file.update({
       where: { id: fileId },
-      data: {
-        fileTags: { connect: dto.tagIds.map((id) => ({ id })) },
-      },
+      data: { fileTags: { connect: dto.tagIds.map((id) => ({ id })) } },
       include: { fileTags: true },
     });
   }
@@ -401,6 +464,7 @@ export class StorageService {
   async bulkUploadFiles(
     files: Express.Multer.File[],
     metadata: BulkUploadMetadataDto,
+    userId: string,
   ): Promise<BulkUploadResult> {
     if (!files || files.length === 0) {
       throw new BadRequestException('No files provided for bulk upload');
@@ -419,7 +483,7 @@ export class StorageService {
       );
     }
 
-    const provider = metadata.provider || 'dropbox';
+    const provider = metadata.provider ?? 'dropbox';
     await this.cloudStorageFactory.getProvider(provider);
 
     const result: BulkUploadResult = {
@@ -434,14 +498,16 @@ export class StorageService {
         const uploadResult = await this.uploadFileToProvider(
           file,
           provider,
+          userId,
           metadata.folderPath,
         );
 
         if (metadata.defaultTags || metadata.defaultMetadata) {
-          await this.updateFileMetadata(uploadResult.fileId, {
-            tags: metadata.defaultTags,
-            metadata: metadata.defaultMetadata,
-          });
+          await this.updateFileMetadata(
+            uploadResult.fileId,
+            { tags: metadata.defaultTags, metadata: metadata.defaultMetadata },
+            userId,
+          );
         }
 
         result.files.push({
@@ -466,6 +532,7 @@ export class StorageService {
   async uploadFileToMultipleProviders(
     file: Express.Multer.File,
     uploadData: MultiProviderUploadDto,
+    userId: string,
   ): Promise<MultiProviderUploadResult> {
     if (!file || !file.buffer) {
       throw new BadRequestException('Invalid file data');
@@ -489,22 +556,24 @@ export class StorageService {
       total: uploadData.providers.length,
     };
 
-    let firstUploadResult: FileUploadResult | null = null;
+    let primaryFileId: string | null = null;
 
     for (const provider of uploadData.providers) {
       try {
-        if (!firstUploadResult) {
-          firstUploadResult = await this.uploadFileToProvider(
+        if (!primaryFileId) {
+          const firstResult = await this.uploadFileToProvider(
             file,
             provider,
+            userId,
             uploadData.folderPath,
           );
-          result.fileId = firstUploadResult.fileId;
+          primaryFileId = firstResult.fileId;
+          result.fileId = primaryFileId;
           result.results.push({
             provider,
             success: true,
-            url: firstUploadResult.url,
-            storageName: firstUploadResult.storageName,
+            url: firstResult.url,
+            storageName: firstResult.storageName,
           });
         } else {
           const storageProvider =
@@ -512,8 +581,7 @@ export class StorageService {
           const storageName = storageProvider.generateStorageName(
             file.originalname,
           );
-
-          const providerUploadResult = await storageProvider.uploadFile(
+          const providerResult = await storageProvider.uploadFile(
             file,
             storageName,
             uploadData.folderPath,
@@ -521,36 +589,39 @@ export class StorageService {
 
           const tempFileId = await storageProvider.saveFileRecord(
             file,
-            providerUploadResult.url,
+            providerResult.url,
             storageName,
             uploadData.folderPath,
+            userId,
           );
 
-          const tempFile = await this.prisma.file.findUnique({
-            where: { id: tempFileId },
-            include: { cloudStorages: true },
-          });
-
-          if (tempFile && tempFile.cloudStorages.length > 0) {
-            const cloudStorage = tempFile.cloudStorages[0];
-
-            await this.prisma.cloudStorage.update({
-              where: { id: cloudStorage.id },
-              data: {
-                files: {
-                  disconnect: { id: tempFileId },
-                  connect: { id: result.fileId },
-                },
-              },
+          await this.prisma.$transaction(async (tx) => {
+            const tempFile = await tx.file.findUnique({
+              where: { id: tempFileId },
+              include: { cloudStorages: true },
             });
 
-            await this.prisma.file.delete({ where: { id: tempFileId } });
-          }
+            if (tempFile && tempFile.cloudStorages.length > 0) {
+              const cloudStorage = tempFile.cloudStorages[0];
+
+              await tx.cloudStorage.update({
+                where: { id: cloudStorage.id },
+                data: {
+                  files: {
+                    disconnect: { id: tempFileId },
+                    connect: { id: primaryFileId },
+                  },
+                },
+              });
+
+              await tx.file.delete({ where: { id: tempFileId } });
+            }
+          });
 
           result.results.push({
             provider,
             success: true,
-            url: providerUploadResult.url,
+            url: providerResult.url,
             storageName,
           });
         }
@@ -566,12 +637,18 @@ export class StorageService {
       result.fileId &&
       (uploadData.description || uploadData.tags || uploadData.metadata)
     ) {
-      await this.updateFileMetadata(result.fileId, {
-        description: uploadData.description,
-        tags: uploadData.tags,
-        metadata: uploadData.metadata,
-      }).catch((error) => {
-        this.logger.warn(`Failed to update metadata: ${error.message}`);
+      await this.updateFileMetadata(
+        result.fileId,
+        {
+          description: uploadData.description,
+          tags: uploadData.tags,
+          metadata: uploadData.metadata,
+        },
+        userId,
+      ).catch((err) => {
+        this.logger.warn(
+          `Failed to update metadata after multi-provider upload: ${err.message}`,
+        );
       });
     }
 
@@ -580,6 +657,7 @@ export class StorageService {
 
   async deleteFileFromMultipleProviders(
     deleteData: MultiProviderDeleteDto,
+    requestingUserId: string,
   ): Promise<MultiProviderDeleteResult> {
     const file = await this.prisma.file.findUnique({
       where: { id: deleteData.fileId },
@@ -588,6 +666,12 @@ export class StorageService {
 
     if (!file) {
       throw new NotFoundException(`File '${deleteData.fileId}' not found`);
+    }
+
+    if (file.userId && file.userId !== requestingUserId) {
+      throw new ForbiddenException(
+        'You do not have permission to delete this file',
+      );
     }
 
     const result: MultiProviderDeleteResult = {
@@ -615,7 +699,11 @@ export class StorageService {
           continue;
         }
 
-        await this.deleteFileFromProvider(provider, deleteData.fileId);
+        await this.deleteFileFromProvider(
+          provider,
+          deleteData.fileId,
+          requestingUserId,
+        );
         result.results.push({ provider, success: true });
         result.successful++;
       } catch (error) {
@@ -643,16 +731,16 @@ export class StorageService {
       storageName: file.storageName,
       path: file.path,
       description: file.description,
-      tags: file.tags || [],
-      metadata: file.metadata || {},
+      tags: file.tags ?? [],
+      metadata: file.metadata ?? {},
       isPublic: file.isPublic,
       downloadCount: file.downloadCount,
       lastAccessedAt: file.lastAccessedAt,
       expiresAt: file.expiresAt,
       createdAt: file.createdAt,
       updatedAt: file.updatedAt,
-      cloudStorages: file.cloudStorages || [],
-      fileTags: file.fileTags || [],
+      cloudStorages: file.cloudStorages ?? [],
+      fileTags: file.fileTags ?? [],
     };
   }
 }

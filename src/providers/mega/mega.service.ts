@@ -1,20 +1,24 @@
 import {
-  Injectable,
   BadRequestException,
+  Injectable,
   NotFoundException,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
+import * as megajs from 'megajs';
+import { Readable } from 'stream';
 import { PrismaService } from '../../prisma/prisma.service';
 import { EncryptionService } from '../../utils/encryption.util';
 import { ProviderConfigService } from '../../common/providers/provider-config.service';
 import { FileListItem } from '../../common/interfaces/cloud-storage.interface';
-import * as megajs from 'megajs';
 import { FileValidationPipe } from '../../common/pipes/file-validation.pipe';
 import { BaseCloudStorageProvider } from '../../common/providers/base-cloud-storage.provider';
+
+const SESSION_TTL_MS = 60 * 60 * 1000;
 
 @Injectable()
 export class MegaService extends BaseCloudStorageProvider {
   private storageInstance: megajs.Storage | null = null;
+  private sessionCreatedAt: number | null = null;
 
   constructor(
     configService: ConfigService,
@@ -37,37 +41,37 @@ export class MegaService extends BaseCloudStorageProvider {
 
   protected getCredentialsForEncryption(): Record<string, any> {
     const config = this.providerConfigService.getMegaConfig();
-    return {
-      email: config.email,
-      password: config.password,
-    };
+    return { email: config.email, password: config.password };
+  }
+
+  private isSessionExpired(): boolean {
+    if (!this.sessionCreatedAt) return true;
+    return Date.now() - this.sessionCreatedAt > SESSION_TTL_MS;
   }
 
   private async getMegaStorage(): Promise<megajs.Storage> {
-    if (this.storageInstance) {
+    if (this.storageInstance && !this.isSessionExpired()) {
       return this.storageInstance;
+    }
+
+    if (this.storageInstance) {
+      this.invalidateSession();
     }
 
     const { email, password } = this.getCredentialsForEncryption();
 
-    this.logger.log('Authenticating with Mega...');
-
     return new Promise<megajs.Storage>((resolve, reject) => {
-      const storage = new megajs.Storage({
-        email,
-        password,
-        autoload: true,
-      });
+      const storage = new megajs.Storage({ email, password, autoload: true });
 
       storage.on('ready', () => {
-        this.logger.log('Mega authentication successful');
         this.storageInstance = storage;
+        this.sessionCreatedAt = Date.now();
+        this.logger.log('Mega session established');
         resolve(storage);
       });
 
       storage.on('error', (err) => {
-        this.storageInstance = null;
-        this.logger.error(`Mega authentication error: ${err.message}`);
+        this.invalidateSession();
         reject(new Error(`Failed to authenticate with Mega: ${err.message}`));
       });
     });
@@ -75,6 +79,7 @@ export class MegaService extends BaseCloudStorageProvider {
 
   private invalidateSession(): void {
     this.storageInstance = null;
+    this.sessionCreatedAt = null;
   }
 
   private async navigateToFolder(
@@ -137,6 +142,18 @@ export class MegaService extends BaseCloudStorageProvider {
     return targetFolder;
   }
 
+  async ping(): Promise<void> {
+    return this.executeWithErrorHandling(async () => {
+      const storage = await this.getMegaStorage().catch((err) => {
+        this.invalidateSession();
+        throw err;
+      });
+      if (!storage.root) {
+        throw new Error('Mega storage root is not accessible');
+      }
+    }, 'Ping');
+  }
+
   async uploadFile(
     file: Express.Multer.File,
     fileName: string,
@@ -145,13 +162,10 @@ export class MegaService extends BaseCloudStorageProvider {
     return this.executeWithErrorHandling(async () => {
       this.validateFileOperation(file);
 
-      let storage: megajs.Storage;
-      try {
-        storage = await this.getMegaStorage();
-      } catch (error) {
+      const storage = await this.getMegaStorage().catch((err) => {
         this.invalidateSession();
-        throw error;
-      }
+        throw err;
+      });
 
       const targetFolder = folderPath
         ? await this.createFolderPath(storage, folderPath)
@@ -181,13 +195,10 @@ export class MegaService extends BaseCloudStorageProvider {
 
   async listFiles(folderPath?: string): Promise<FileListItem[]> {
     return this.executeWithErrorHandling(async () => {
-      let storage: megajs.Storage;
-      try {
-        storage = await this.getMegaStorage();
-      } catch (error) {
+      const storage = await this.getMegaStorage().catch((err) => {
         this.invalidateSession();
-        throw error;
-      }
+        throw err;
+      });
 
       const targetFolder = await this.navigateToFolder(storage, folderPath);
 
@@ -204,15 +215,12 @@ export class MegaService extends BaseCloudStorageProvider {
     }, 'List files');
   }
 
-  async downloadFile(fileId: string, folderPath?: string): Promise<Buffer> {
+  async downloadFile(fileId: string, folderPath?: string): Promise<Readable> {
     return this.executeWithErrorHandling(async () => {
-      let storage: megajs.Storage;
-      try {
-        storage = await this.getMegaStorage();
-      } catch (error) {
+      const storage = await this.getMegaStorage().catch((err) => {
         this.invalidateSession();
-        throw error;
-      }
+        throw err;
+      });
 
       const targetFolder = await this.navigateToFolder(storage, folderPath);
       const targetFile = targetFolder.children.find(
@@ -223,24 +231,23 @@ export class MegaService extends BaseCloudStorageProvider {
         throw new NotFoundException(`File '${fileId}' not found`);
       }
 
-      return new Promise((resolve, reject) => {
+      const buffer: Buffer = await new Promise((resolve, reject) => {
         targetFile.download((err: any, data: Buffer) => {
           if (err) reject(err);
           else resolve(data);
         });
       });
+
+      return Readable.from(buffer);
     }, 'Download file');
   }
 
   async deleteFile(fileId: string, folderPath?: string): Promise<void> {
     return this.executeWithErrorHandling(async () => {
-      let storage: megajs.Storage;
-      try {
-        storage = await this.getMegaStorage();
-      } catch (error) {
+      const storage = await this.getMegaStorage().catch((err) => {
         this.invalidateSession();
-        throw error;
-      }
+        throw err;
+      });
 
       const targetFolder = await this.navigateToFolder(storage, folderPath);
       const targetFile = targetFolder.children.find(
@@ -264,14 +271,10 @@ export class MegaService extends BaseCloudStorageProvider {
     this.validateFolderPath(folderPath);
 
     return this.executeWithErrorHandling(async () => {
-      let storage: megajs.Storage;
-      try {
-        storage = await this.getMegaStorage();
-      } catch (error) {
+      const storage = await this.getMegaStorage().catch((err) => {
         this.invalidateSession();
-        throw error;
-      }
-
+        throw err;
+      });
       await this.createFolderPath(storage, folderPath);
     }, 'Create folder');
   }
@@ -280,13 +283,10 @@ export class MegaService extends BaseCloudStorageProvider {
     this.validateFolderPath(folderPath);
 
     return this.executeWithErrorHandling(async () => {
-      let storage: megajs.Storage;
-      try {
-        storage = await this.getMegaStorage();
-      } catch (error) {
+      const storage = await this.getMegaStorage().catch((err) => {
         this.invalidateSession();
-        throw error;
-      }
+        throw err;
+      });
 
       const targetFolder = await this.navigateToFolder(storage, folderPath);
 

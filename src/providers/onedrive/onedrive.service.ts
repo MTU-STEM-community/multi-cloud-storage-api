@@ -1,12 +1,13 @@
-import { Injectable, BadRequestException } from '@nestjs/common';
+import { BadRequestException, Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
+import axios from 'axios';
+import { Readable } from 'stream';
 import { PrismaService } from '../../prisma/prisma.service';
 import { EncryptionService } from '../../utils/encryption.util';
 import { BaseCloudStorageProvider } from '../../common/providers/base-cloud-storage.provider';
 import { FileListItem } from '../../common/interfaces/cloud-storage.interface';
 import { FileValidationPipe } from '../../common/pipes/file-validation.pipe';
-import axios from 'axios';
-import { ProviderConfigService } from 'src/common/providers/provider-config.service';
+import { ProviderConfigService } from '../../common/providers/provider-config.service';
 
 @Injectable()
 export class OneDriveService extends BaseCloudStorageProvider {
@@ -47,7 +48,6 @@ export class OneDriveService extends BaseCloudStorageProvider {
 
     try {
       const tokenUrl = `https://login.microsoftonline.com/${tenantId}/oauth2/v2.0/token`;
-
       const params = new URLSearchParams({
         client_id: clientId,
         client_secret: clientSecret,
@@ -57,14 +57,11 @@ export class OneDriveService extends BaseCloudStorageProvider {
       });
 
       const response = await axios.post(tokenUrl, params, {
-        headers: {
-          'Content-Type': 'application/x-www-form-urlencoded',
-        },
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
       });
 
       return response.data.access_token;
     } catch (error) {
-      this.logger.error(`OneDrive token refresh error: ${error.message}`);
       throw new BadRequestException(
         `Failed to refresh OneDrive access token: ${error.message}`,
       );
@@ -73,9 +70,7 @@ export class OneDriveService extends BaseCloudStorageProvider {
 
   private async getApiHeaders(): Promise<{ Authorization: string }> {
     const accessToken = await this.getAccessToken();
-    return {
-      Authorization: `Bearer ${accessToken}`,
-    };
+    return { Authorization: `Bearer ${accessToken}` };
   }
 
   private async ensureFolderExists(folderPath: string): Promise<void> {
@@ -90,7 +85,6 @@ export class OneDriveService extends BaseCloudStorageProvider {
 
       try {
         await axios.get(`${this.baseUrl}/root:/${parentPath}`, { headers });
-        this.logger.log(`Folder '${parentPath}' already exists`);
       } catch (error) {
         if (error.response?.status === 404) {
           const createUrl = currentPath
@@ -106,7 +100,6 @@ export class OneDriveService extends BaseCloudStorageProvider {
             },
             { headers },
           );
-          this.logger.log(`Created folder '${parentPath}'`);
         } else {
           throw error;
         }
@@ -114,6 +107,13 @@ export class OneDriveService extends BaseCloudStorageProvider {
 
       currentPath = parentPath;
     }
+  }
+
+  async ping(): Promise<void> {
+    return this.executeWithErrorHandling(async () => {
+      const headers = await this.getApiHeaders();
+      await axios.get(this.baseUrl, { headers });
+    }, 'Ping');
   }
 
   async uploadFile(
@@ -126,42 +126,27 @@ export class OneDriveService extends BaseCloudStorageProvider {
 
       await this.ensureFolderExists(folderPath);
       const headers = await this.getApiHeaders();
-
       const filePath = this.constructFilePath(fileName, folderPath);
-      const uploadPath = `${this.baseUrl}/root:/${filePath}:/content`;
 
-      this.logger.log(`Uploading file '${fileName}' to OneDrive...`);
+      const uploadResponse = await axios.put(
+        `${this.baseUrl}/root:/${filePath}:/content`,
+        file.buffer,
+        { headers: { ...headers, 'Content-Type': 'application/octet-stream' } },
+      );
 
-      const uploadResponse = await axios.put(uploadPath, file.buffer, {
-        headers: {
-          ...headers,
-          'Content-Type': 'application/octet-stream',
-        },
-      });
-
-      const shareUrl = `${this.baseUrl}/items/${uploadResponse.data.id}/createLink`;
       const shareResponse = await axios.post(
-        shareUrl,
-        {
-          type: 'view',
-          scope: 'anonymous',
-        },
+        `${this.baseUrl}/items/${uploadResponse.data.id}/createLink`,
+        { type: 'view', scope: 'anonymous' },
         { headers },
       );
 
-      this.logger.log(`File uploaded successfully: ${fileName}`);
-
-      return {
-        url: shareResponse.data.link.webUrl,
-        storageName: fileName,
-      };
+      return { url: shareResponse.data.link.webUrl, storageName: fileName };
     }, 'Upload file');
   }
 
   async listFiles(folderPath?: string): Promise<FileListItem[]> {
     return this.executeWithErrorHandling(async () => {
       const headers = await this.getApiHeaders();
-
       const listUrl = folderPath
         ? `${this.baseUrl}/root:/${folderPath}:/children`
         : `${this.baseUrl}/root/children`;
@@ -182,31 +167,28 @@ export class OneDriveService extends BaseCloudStorageProvider {
     }, 'List files');
   }
 
-  async downloadFile(fileId: string, folderPath?: string): Promise<Buffer> {
+  async downloadFile(fileId: string, folderPath?: string): Promise<Readable> {
     return this.executeWithErrorHandling(async () => {
       const headers = await this.getApiHeaders();
-
       const filePath = this.constructFilePath(fileId, folderPath);
-      const downloadUrl = `${this.baseUrl}/root:/${filePath}:/content`;
 
-      const response = await axios.get(downloadUrl, {
-        headers,
-        responseType: 'arraybuffer',
-      });
+      const response = await axios.get(
+        `${this.baseUrl}/root:/${filePath}:/content`,
+        {
+          headers,
+          responseType: 'stream',
+        },
+      );
 
-      return Buffer.from(response.data);
+      return response.data as Readable;
     }, 'Download file');
   }
 
   async deleteFile(fileId: string, folderPath?: string): Promise<void> {
     return this.executeWithErrorHandling(async () => {
       const headers = await this.getApiHeaders();
-
       const filePath = this.constructFilePath(fileId, folderPath);
-      const deleteUrl = `${this.baseUrl}/root:/${filePath}`;
-
-      await axios.delete(deleteUrl, { headers });
-      this.logger.log(`File '${fileId}' deleted successfully from OneDrive`);
+      await axios.delete(`${this.baseUrl}/root:/${filePath}`, { headers });
     }, 'Delete file');
   }
 
@@ -228,9 +210,6 @@ export class OneDriveService extends BaseCloudStorageProvider {
       await axios.delete(`${this.baseUrl}/root:/${normalizedPath}`, {
         headers,
       });
-      this.logger.log(
-        `Folder '${folderPath}' deleted successfully from OneDrive`,
-      );
     }, 'Delete folder');
   }
 }

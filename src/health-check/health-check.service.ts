@@ -1,25 +1,38 @@
-import { Injectable, Logger, HttpStatus, HttpException } from '@nestjs/common';
-import { PrismaService } from '../prisma/prisma.service';
+import { HttpException, HttpStatus, Injectable, Logger } from '@nestjs/common';
+import * as os from 'os';
 import { CloudStorageFactoryService } from '../common/providers/cloud-storage-factory.service';
 import { PerformanceMetricsService } from '../monitoring/performance-metrics.service';
-import * as os from 'os';
+import { PrismaService } from '../prisma/prisma.service';
+
+const SUPPORTED_PROVIDERS = [
+  'google-cloud',
+  'dropbox',
+  'mega',
+  'google-drive',
+  'backblaze',
+  'onedrive',
+] as const;
 
 @Injectable()
 export class HealthCheckService {
   private readonly logger = new Logger(HealthCheckService.name);
-  private startTime: number;
+  private readonly startTime = Date.now();
 
   constructor(
     private readonly prisma: PrismaService,
     private readonly cloudStorageFactory: CloudStorageFactoryService,
     private readonly metricsService: PerformanceMetricsService,
-  ) {
-    this.startTime = Date.now();
-  }
+  ) {}
 
   async checkHealth() {
     try {
-      const checks = await Promise.all([
+      const [
+        dbCheck,
+        memoryCheck,
+        uptimeCheck,
+        providersCheck,
+        performanceCheck,
+      ] = await Promise.all([
         this.checkDatabase(),
         this.checkMemoryUsage(),
         this.checkUptime(),
@@ -27,17 +40,15 @@ export class HealthCheckService {
         this.checkPerformance(),
       ]);
 
-      const [
+      const checks = [
         dbCheck,
         memoryCheck,
         uptimeCheck,
         providersCheck,
         performanceCheck,
-      ] = checks;
-
-      const hasError = checks.some((check) => check.status === 'error');
-      const hasWarning = checks.some((check) => check.status === 'warning');
-
+      ];
+      const hasError = checks.some((c) => c.status === 'error');
+      const hasWarning = checks.some((c) => c.status === 'warning');
       const status = hasError ? 'error' : hasWarning ? 'warning' : 'ok';
 
       const result = {
@@ -49,37 +60,28 @@ export class HealthCheckService {
           providers: providersCheck,
           performance: performanceCheck,
         },
-        error: {},
+        error: {} as Record<string, any>,
         details: {
-          environment: process.env.NODE_ENV || 'development',
+          environment: process.env.NODE_ENV ?? 'development',
           hostname: os.hostname(),
         },
       };
 
       if (status === 'error') {
-        const errors = {};
-        if (dbCheck.status === 'error') errors['database'] = dbCheck.error;
+        if (dbCheck.status === 'error')
+          result.error['database'] = (dbCheck as any).error;
         if (memoryCheck.status === 'error')
-          errors['memory'] = memoryCheck.error;
-        if (uptimeCheck.status === 'error')
-          errors['uptime'] = uptimeCheck.error;
-
-        result.error = errors;
+          result.error['memory'] = (memoryCheck as any).error;
         throw new HttpException(result, HttpStatus.SERVICE_UNAVAILABLE);
       }
 
       return result;
     } catch (error) {
-      if (error instanceof HttpException) {
-        throw error;
-      }
+      if (error instanceof HttpException) throw error;
 
       this.logger.error('Health check failed', error);
       throw new HttpException(
-        {
-          status: 'error',
-          error: { message: error.message },
-        },
+        { status: 'error', error: { message: error.message } },
         HttpStatus.SERVICE_UNAVAILABLE,
       );
     }
@@ -97,10 +99,7 @@ export class HealthCheckService {
     } catch (error) {
       this.logger.error('Readiness check failed', error);
       throw new HttpException(
-        {
-          status: 'error',
-          error: { message: 'Service not ready' },
-        },
+        { status: 'error', error: { message: 'Service not ready' } },
         HttpStatus.SERVICE_UNAVAILABLE,
       );
     }
@@ -117,124 +116,81 @@ export class HealthCheckService {
         responseTime,
       };
     } catch (error) {
-      this.logger.error('Database health check failed', error);
-      return {
-        status: 'error',
-        error: error.message,
-      };
+      return { status: 'error', error: error.message };
     }
   }
 
   private checkMemoryUsage() {
     try {
-      const memoryUsage = process.memoryUsage();
-      const usedHeapSize = memoryUsage.heapUsed / 1024 / 1024;
-      const totalHeapSize = memoryUsage.heapTotal / 1024 / 1024;
-
-      const threshold = totalHeapSize * 0.8;
+      const { heapUsed, heapTotal } = process.memoryUsage();
+      const usedMB = heapUsed / 1024 / 1024;
+      const totalMB = heapTotal / 1024 / 1024;
+      const threshold = totalMB * 0.8;
 
       return {
-        status: usedHeapSize < threshold ? 'ok' : 'warning',
-        usage: Math.round(usedHeapSize * 100) / 100,
+        status: usedMB < threshold ? 'ok' : 'warning',
+        usage: Math.round(usedMB * 100) / 100,
         threshold: Math.round(threshold * 100) / 100,
-        totalHeap: Math.round(totalHeapSize * 100) / 100,
-        percentUsed: Math.round((usedHeapSize / totalHeapSize) * 100),
+        totalHeap: Math.round(totalMB * 100) / 100,
+        percentUsed: Math.round((usedMB / totalMB) * 100),
       };
     } catch (error) {
-      this.logger.error('Memory health check failed', error);
-      return {
-        status: 'error',
-        error: error.message,
-      };
+      return { status: 'error', error: error.message };
     }
   }
 
   private checkUptime() {
-    try {
-      const uptime = Math.floor((Date.now() - this.startTime) / 1000);
-      return {
-        status: 'ok',
-        value: uptime,
-      };
-    } catch (error) {
-      this.logger.error('Uptime health check failed', error);
-      return {
-        status: 'error',
-        error: error.message,
-      };
-    }
+    return {
+      status: 'ok',
+      value: Math.floor((Date.now() - this.startTime) / 1000),
+    };
   }
 
   private async checkProviders() {
-    try {
-      const providers = [
-        'google-cloud',
-        'dropbox',
-        'mega',
-        'google-drive',
-        'backblaze',
-        'onedrive',
-      ];
-      const providerChecks = await Promise.allSettled(
-        providers.map(async (provider) => {
-          try {
-            const start = Date.now();
-            const storageProvider =
-              await this.cloudStorageFactory.getProvider(provider);
+    const providerChecks = await Promise.allSettled(
+      SUPPORTED_PROVIDERS.map(async (provider) => {
+        const start = Date.now();
+        try {
+          const storageProvider =
+            await this.cloudStorageFactory.getProvider(provider);
+          await storageProvider.ping();
+          const responseTime = Date.now() - start;
 
-            // Simple connectivity test - try to list files
-            await storageProvider.listFiles();
-            const responseTime = Date.now() - start;
-
-            return {
-              provider,
-              status: responseTime < 3000 ? 'ok' : 'warning',
-              responseTime,
-            };
-          } catch (error) {
-            return {
-              provider,
-              status: 'error',
-              error: error.message,
-            };
-          }
-        }),
-      );
-
-      const results = providerChecks.map((check, index) => {
-        if (check.status === 'fulfilled') {
-          return check.value;
-        } else {
           return {
-            provider: providers[index],
-            status: 'error',
-            error: check.reason?.message || 'Unknown error',
+            provider,
+            status: responseTime < 3000 ? 'ok' : 'warning',
+            responseTime,
           };
+        } catch (error) {
+          return { provider, status: 'error', error: error.message };
         }
-      });
+      }),
+    );
 
-      const healthyProviders = results.filter((r) => r.status === 'ok').length;
-      const totalProviders = results.length;
-      const overallStatus =
-        healthyProviders === totalProviders
+    const results = providerChecks.map((check, index) =>
+      check.status === 'fulfilled'
+        ? check.value
+        : {
+            provider: SUPPORTED_PROVIDERS[index],
+            status: 'error',
+            error: check.reason?.message,
+          },
+    );
+
+    const healthyCount = results.filter((r) => r.status === 'ok').length;
+    const total = results.length;
+
+    return {
+      status:
+        healthyCount === total
           ? 'ok'
-          : healthyProviders > totalProviders / 2
+          : healthyCount > total / 2
             ? 'warning'
-            : 'error';
-
-      return {
-        status: overallStatus,
-        healthy: healthyProviders,
-        total: totalProviders,
-        providers: results,
-      };
-    } catch (error) {
-      this.logger.error('Provider health check failed', error);
-      return {
-        status: 'error',
-        error: error.message,
-      };
-    }
+            : 'error',
+      healthy: healthyCount,
+      total,
+      providers: results,
+    };
   }
 
   private checkPerformance() {
@@ -242,18 +198,18 @@ export class HealthCheckService {
       const systemMetrics = this.metricsService.getSystemMetrics();
       const providerPerformance = this.metricsService.getProviderPerformance();
 
-      const unhealthyProviders = providerPerformance.filter(
+      const unhealthyCount = providerPerformance.filter(
         (p) => p.status === 'unhealthy',
       ).length;
-      const degradedProviders = providerPerformance.filter(
+      const degradedCount = providerPerformance.filter(
         (p) => p.status === 'degraded',
       ).length;
 
       let status = 'ok';
-      if (unhealthyProviders > 0 || systemMetrics.successRate < 80) {
+      if (unhealthyCount > 0 || systemMetrics.successRate < 80) {
         status = 'error';
       } else if (
-        degradedProviders > 0 ||
+        degradedCount > 0 ||
         systemMetrics.averageResponseTime > 3000
       ) {
         status = 'warning';
@@ -269,16 +225,12 @@ export class HealthCheckService {
         providerSummary: {
           healthy: providerPerformance.filter((p) => p.status === 'healthy')
             .length,
-          degraded: degradedProviders,
-          unhealthy: unhealthyProviders,
+          degraded: degradedCount,
+          unhealthy: unhealthyCount,
         },
       };
     } catch (error) {
-      this.logger.error('Performance health check failed', error);
-      return {
-        status: 'error',
-        error: error.message,
-      };
+      return { status: 'error', error: error.message };
     }
   }
 }

@@ -1,4 +1,4 @@
-import { Injectable, Logger, BadRequestException } from '@nestjs/common';
+import { BadRequestException, Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { PrismaService } from '../../prisma/prisma.service';
 import { EncryptionService } from '../../utils/encryption.util';
@@ -7,6 +7,7 @@ import {
   FileListItem,
 } from '../interfaces/cloud-storage.interface';
 import { ProviderConfigService } from './provider-config.service';
+import { Readable } from 'stream';
 
 @Injectable()
 export abstract class BaseCloudStorageProvider implements CloudStorageProvider {
@@ -29,10 +30,11 @@ export abstract class BaseCloudStorageProvider implements CloudStorageProvider {
   ): Promise<{ url: string; storageName: string }>;
 
   abstract listFiles(folderPath?: string): Promise<FileListItem[]>;
-  abstract downloadFile(fileId: string, folderPath?: string): Promise<Buffer>;
+  abstract downloadFile(fileId: string, folderPath?: string): Promise<Readable>;
   abstract deleteFile(fileId: string, folderPath?: string): Promise<void>;
   abstract deleteFolder(folderPath: string): Promise<void>;
   abstract createFolder?(folderPath: string): Promise<void>;
+  abstract ping(): Promise<void>;
 
   protected abstract validateConfiguration(): void;
   protected abstract getCredentialsForEncryption(): Record<string, any>;
@@ -56,6 +58,7 @@ export abstract class BaseCloudStorageProvider implements CloudStorageProvider {
     url: string,
     storageName: string,
     folderPath?: string,
+    userId?: string,
   ): Promise<string> {
     const { encryptionSecret } =
       this.providerConfigService.getEncryptionConfig();
@@ -76,6 +79,7 @@ export abstract class BaseCloudStorageProvider implements CloudStorageProvider {
         url,
         storageName,
         path: folderPath,
+        userId: userId ?? null,
         cloudStorages: {
           create: {
             provider: this.providerName.toLowerCase(),

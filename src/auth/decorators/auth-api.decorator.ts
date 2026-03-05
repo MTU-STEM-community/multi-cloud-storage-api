@@ -1,77 +1,57 @@
 import { applyDecorators } from '@nestjs/common';
 import {
+  ApiBearerAuth,
+  ApiBody,
   ApiOperation,
   ApiResponse,
-  ApiBody,
-  ApiBearerAuth,
 } from '@nestjs/swagger';
 import { ApiStandardResponses } from '../../common/decorators/base-api.decorator';
 
 export const ApiLogin = () =>
   applyDecorators(
     ApiOperation({
-      summary: 'Admin login',
-      description: 'Authenticate admin user and receive JWT token',
+      summary: 'Authenticate user',
+      description:
+        'Authenticate with username and password to receive a JWT access token',
     }),
     ApiBody({
       schema: {
         type: 'object',
         required: ['username', 'password'],
         properties: {
-          username: {
-            type: 'string',
-            example: 'admin',
-            description: 'Admin username',
-          },
-          password: {
-            type: 'string',
-            example: 'password123',
-            description: 'Admin password',
-          },
+          username: { type: 'string', example: 'admin' },
+          password: { type: 'string', example: 'SecurePass123' },
         },
       },
     }),
     ApiResponse({
       status: 200,
-      description: 'Login successful',
+      description: 'Authentication successful',
       schema: {
         type: 'object',
         properties: {
-          access_token: {
-            type: 'string',
-            example: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...',
-            description: 'JWT access token',
-          },
+          access_token: { type: 'string' },
           user: {
             type: 'object',
             properties: {
-              id: { type: 'string', example: 'clp1234567890abcdef' },
-              username: { type: 'string', example: 'admin' },
-              email: { type: 'string', example: 'admin@example.com' },
+              id: { type: 'string' },
+              username: { type: 'string' },
+              email: { type: 'string' },
             },
           },
         },
       },
     }),
-    ApiResponse({
-      status: 401,
-      description: 'Invalid credentials',
-      schema: {
-        type: 'object',
-        properties: {
-          statusCode: { type: 'number', example: 401 },
-          message: { type: 'string', example: 'Invalid credentials' },
-        },
-      },
-    }),
+    ApiResponse({ status: 401, description: 'Invalid credentials' }),
+    ApiResponse({ status: 429, description: 'Too many login attempts' }),
     ApiStandardResponses(),
   );
 
 export const ApiRegister = () =>
   applyDecorators(
     ApiOperation({
-      summary: 'Register new admin user',
-      description: 'Create a new admin user account',
+      summary: 'Register a new user',
+      description: 'Create a new user account',
     }),
     ApiBody({
       schema: {
@@ -80,97 +60,50 @@ export const ApiRegister = () =>
         properties: {
           username: {
             type: 'string',
-            example: 'admin',
-            description: 'Unique username',
+            minLength: 3,
+            maxLength: 50,
+            example: 'john_doe',
           },
           email: {
             type: 'string',
             format: 'email',
-            example: 'admin@example.com',
-            description: 'Unique email address',
+            example: 'john@example.com',
           },
           password: {
             type: 'string',
-            minLength: 6,
-            example: 'password123',
-            description: 'Password (minimum 6 characters)',
+            minLength: 8,
+            example: 'SecurePass123',
+            description:
+              'Minimum 8 characters, must contain at least one uppercase letter and one number',
           },
         },
       },
     }),
+    ApiResponse({ status: 201, description: 'User registered successfully' }),
     ApiResponse({
-      status: 201,
-      description: 'User registered successfully',
-      schema: {
-        type: 'object',
-        properties: {
-          id: { type: 'string', example: 'clp1234567890abcdef' },
-          username: { type: 'string', example: 'admin' },
-          email: { type: 'string', example: 'admin@example.com' },
-          isActive: { type: 'boolean', example: true },
-          createdAt: { type: 'string', format: 'date-time' },
-          updatedAt: { type: 'string', format: 'date-time' },
-        },
-      },
-    }),
-    ApiResponse({
-      status: 401,
+      status: 409,
       description: 'Username or email already exists',
-      schema: {
-        type: 'object',
-        properties: {
-          statusCode: { type: 'number', example: 401 },
-          message: {
-            type: 'string',
-            example: 'Username or email already exists',
-          },
-        },
-      },
     }),
     ApiStandardResponses(),
   );
 
 export const ApiGetProfile = () =>
   applyDecorators(
-    ApiBearerAuth(),
+    ApiBearerAuth('JWT-auth'),
     ApiOperation({
       summary: 'Get current user profile',
-      description: 'Retrieve the authenticated user profile information',
+      description: 'Retrieve the authenticated user profile',
     }),
-    ApiResponse({
-      status: 200,
-      description: 'User profile retrieved successfully',
-      schema: {
-        type: 'object',
-        properties: {
-          id: { type: 'string', example: 'clp1234567890abcdef' },
-          username: { type: 'string', example: 'admin' },
-          email: { type: 'string', example: 'admin@example.com' },
-          isActive: { type: 'boolean', example: true },
-          createdAt: { type: 'string', format: 'date-time' },
-          updatedAt: { type: 'string', format: 'date-time' },
-        },
-      },
-    }),
-    ApiResponse({
-      status: 401,
-      description: 'Unauthorized - Invalid or missing JWT token',
-      schema: {
-        type: 'object',
-        properties: {
-          statusCode: { type: 'number', example: 401 },
-          message: { type: 'string', example: 'Unauthorized' },
-        },
-      },
-    }),
+    ApiResponse({ status: 200, description: 'Profile retrieved successfully' }),
+    ApiResponse({ status: 401, description: 'Unauthorized' }),
     ApiStandardResponses(),
   );
 
 export const ApiChangePassword = () =>
   applyDecorators(
-    ApiBearerAuth(),
+    ApiBearerAuth('JWT-auth'),
     ApiOperation({
-      summary: 'Change user password',
+      summary: 'Change password',
       description: 'Change the authenticated user password',
     }),
     ApiBody({
@@ -178,40 +111,18 @@ export const ApiChangePassword = () =>
         type: 'object',
         required: ['currentPassword', 'newPassword'],
         properties: {
-          currentPassword: {
-            type: 'string',
-            example: 'admin123',
-            description: 'Current password',
-          },
+          currentPassword: { type: 'string', example: 'OldPass123' },
           newPassword: {
             type: 'string',
-            minLength: 6,
-            example: 'newSecurePassword123',
-            description: 'New password (minimum 6 characters)',
+            minLength: 8,
+            example: 'NewSecurePass123',
+            description:
+              'Minimum 8 characters, must contain at least one uppercase letter and one number',
           },
         },
       },
     }),
-    ApiResponse({
-      status: 200,
-      description: 'Password changed successfully',
-      schema: {
-        type: 'object',
-        properties: {
-          message: { type: 'string', example: 'Password changed successfully' },
-        },
-      },
-    }),
-    ApiResponse({
-      status: 401,
-      description: 'Current password is incorrect or user unauthorized',
-      schema: {
-        type: 'object',
-        properties: {
-          statusCode: { type: 'number', example: 401 },
-          message: { type: 'string', example: 'Current password is incorrect' },
-        },
-      },
-    }),
+    ApiResponse({ status: 200, description: 'Password changed successfully' }),
+    ApiResponse({ status: 401, description: 'Current password is incorrect' }),
     ApiStandardResponses(),
   );

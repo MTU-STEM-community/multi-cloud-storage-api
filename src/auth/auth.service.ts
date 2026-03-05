@@ -1,24 +1,18 @@
 import {
-  Injectable,
-  UnauthorizedException,
-  NotFoundException,
   ConflictException,
+  Injectable,
+  NotFoundException,
+  UnauthorizedException,
 } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
-import { PrismaService } from '../prisma/prisma.service';
-import * as bcrypt from 'bcryptjs';
 import { User } from '@prisma/client';
+import * as bcrypt from 'bcryptjs';
+import { PrismaService } from '../prisma/prisma.service';
+import { ChangePasswordDto } from './dto/change-password.dto';
+import { LoginDto } from './dto/login.dto';
+import { RegisterDto } from './dto/register.dto';
 
-export interface LoginDto {
-  username: string;
-  password: string;
-}
-
-export interface RegisterDto {
-  username: string;
-  email: string;
-  password: string;
-}
+export { LoginDto, RegisterDto, ChangePasswordDto };
 
 export interface JwtPayload {
   sub: string;
@@ -26,19 +20,17 @@ export interface JwtPayload {
   email: string;
 }
 
-export interface ChangePasswordDto {
-  currentPassword: string;
-  newPassword: string;
-}
-
 @Injectable()
 export class AuthService {
   constructor(
-    private prisma: PrismaService,
-    private jwtService: JwtService,
+    private readonly prisma: PrismaService,
+    private readonly jwtService: JwtService,
   ) {}
 
-  async validateUser(username: string, password: string): Promise<any> {
+  async validateUser(
+    username: string,
+    password: string,
+  ): Promise<Omit<User, 'password'> | null> {
     const user = await this.prisma.user.findUnique({ where: { username } });
 
     if (
@@ -87,7 +79,7 @@ export class AuthService {
       throw new ConflictException('Username or email already exists');
     }
 
-    const hashedPassword = await bcrypt.hash(registerDto.password, 10);
+    const hashedPassword = await bcrypt.hash(registerDto.password, 12);
 
     const user = await this.prisma.user.create({
       data: {
@@ -131,7 +123,7 @@ export class AuthService {
 
     const hashedNewPassword = await bcrypt.hash(
       changePasswordDto.newPassword,
-      10,
+      12,
     );
 
     await this.prisma.user.update({

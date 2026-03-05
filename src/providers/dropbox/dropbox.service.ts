@@ -1,11 +1,12 @@
 import { Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
+import { Dropbox } from 'dropbox';
+import { Readable } from 'stream';
 import { PrismaService } from '../../prisma/prisma.service';
 import { EncryptionService } from '../../utils/encryption.util';
-import { Dropbox } from 'dropbox';
 import { BaseCloudStorageProvider } from '../../common/providers/base-cloud-storage.provider';
 import { FileListItem } from '../../common/interfaces/cloud-storage.interface';
-import { ProviderConfigService } from 'src/common/providers/provider-config.service';
+import { ProviderConfigService } from '../../common/providers/provider-config.service';
 
 @Injectable()
 export class DropboxService extends BaseCloudStorageProvider {
@@ -36,6 +37,13 @@ export class DropboxService extends BaseCloudStorageProvider {
   private getDropboxClient(): Dropbox {
     const config = this.providerConfigService.getDropboxConfig();
     return new Dropbox({ accessToken: config.accessToken });
+  }
+
+  async ping(): Promise<void> {
+    return this.executeWithErrorHandling(async () => {
+      const dropbox = this.getDropboxClient();
+      await dropbox.usersGetCurrentAccount();
+    }, 'Ping');
   }
 
   async uploadFile(
@@ -80,15 +88,15 @@ export class DropboxService extends BaseCloudStorageProvider {
       return response.result.entries.map((entry) => ({
         name: entry.name,
         path: entry.path_lower,
-        size: (entry as any).size || 'Unknown',
-        contentType: (entry as any).content_type || 'Unknown',
-        modified: (entry as any).server_modified || 'Unknown',
+        size: (entry as any).size ?? 'Unknown',
+        contentType: (entry as any).content_type ?? 'Unknown',
+        modified: (entry as any).server_modified ?? 'Unknown',
         isFolder: entry['.tag'] === 'folder',
       }));
     }, 'List files');
   }
 
-  async downloadFile(fileId: string, folderPath?: string): Promise<Buffer> {
+  async downloadFile(fileId: string, folderPath?: string): Promise<Readable> {
     return this.executeWithErrorHandling(async () => {
       const dropbox = this.getDropboxClient();
       const path = `/${this.constructFilePath(fileId, folderPath)}`;
@@ -102,7 +110,7 @@ export class DropboxService extends BaseCloudStorageProvider {
         throw new Error('Failed to retrieve file contents from Dropbox');
       }
 
-      return Buffer.from(fileContents);
+      return Readable.from(Buffer.from(fileContents));
     }, 'Download file');
   }
 

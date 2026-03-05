@@ -1,16 +1,17 @@
 import { Controller, Get, Query, ParseIntPipe } from '@nestjs/common';
-import { ApiTags } from '@nestjs/swagger';
+import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 import { PerformanceMetricsService } from './performance-metrics.service';
 import {
-  ApiSystemMetrics,
-  ApiProviderPerformance,
-  ApiPerformanceSummary,
   ApiDetailedMetrics,
-  ApiSlowOperations,
   ApiPerformanceDashboard,
+  ApiPerformanceSummary,
+  ApiProviderPerformance,
+  ApiSlowOperations,
+  ApiSystemMetrics,
 } from './decorators/monitoring-api.decorators';
 
 @ApiTags('monitoring')
+@ApiBearerAuth('JWT-auth')
 @Controller('monitoring')
 export class PerformanceController {
   constructor(private readonly metricsService: PerformanceMetricsService) {}
@@ -47,12 +48,11 @@ export class PerformanceController {
       operation,
       provider,
     );
-
     const totalDuration = metrics.reduce((sum, m) => sum + m.duration, 0);
     const successfulMetrics = metrics.filter((m) => m.success);
 
     return {
-      metrics: metrics.slice(-100), // Return last 100 metrics to avoid huge responses
+      metrics: metrics.slice(-100),
       summary: {
         totalMetrics: metrics.length,
         averageResponseTime:
@@ -81,7 +81,7 @@ export class PerformanceController {
     return {
       threshold,
       timeRange: `last_${hours}_hours`,
-      slowOperations: slowOperations.slice(-50), // Last 50 slow operations
+      slowOperations: slowOperations.slice(-50),
       summary: {
         totalSlowOperations: slowOperations.length,
         slowestOperation:
@@ -107,7 +107,6 @@ export class PerformanceController {
     const performanceSummary =
       this.metricsService.getHourlyPerformanceSummary();
 
-    // Get recent slow operations
     const oneHourAgo = new Date(Date.now() - 60 * 60 * 1000);
     const recentMetrics = this.metricsService.getMetrics(oneHourAgo);
     const slowOperations = recentMetrics

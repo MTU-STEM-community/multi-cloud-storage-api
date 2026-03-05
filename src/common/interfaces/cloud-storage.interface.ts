@@ -1,16 +1,15 @@
+import { Readable } from 'stream';
+
 export interface CloudStorageProvider {
   uploadFile(
     file: Express.Multer.File,
     fileName: string,
     folderPath?: string,
-  ): Promise<{
-    url: string;
-    storageName: string;
-  }>;
+  ): Promise<{ url: string; storageName: string }>;
 
   listFiles(folderPath?: string): Promise<FileListItem[]>;
 
-  downloadFile(fileId: string, folderPath?: string): Promise<Buffer>;
+  downloadFile(fileId: string, folderPath?: string): Promise<Readable>;
 
   deleteFile(fileId: string, folderPath?: string): Promise<void>;
 
@@ -18,23 +17,26 @@ export interface CloudStorageProvider {
 
   deleteFolder(folderPath: string): Promise<void>;
 
+  ping(): Promise<void>;
+
   saveFileRecord(
     file: Express.Multer.File,
     url: string,
     storageName: string,
     folderPath?: string,
+    userId?: string,
   ): Promise<string>;
 
   generateStorageName(originalName: string): string;
 }
 
 export interface FileUploadResult {
-  fileId: string; // Primary identifier for future operations
+  fileId: string;
   url: string;
   originalName: string;
-  storageName: string; // Cloud storage identifier (internal use)
+  storageName: string;
   folderPath?: string;
-  message?: string; // Success message with usage instructions
+  message?: string;
 }
 
 export interface FileListItem {
@@ -142,5 +144,5 @@ export interface MultiProviderDeleteResult {
   successful: number;
   failed: number;
   total: number;
-  fileDeleted: boolean; // True if file was completely removed from all providers
+  fileDeleted: boolean;
 }

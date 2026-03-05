@@ -1,4 +1,4 @@
-import { Module } from '@nestjs/common';
+import { MiddlewareConsumer, Module, NestModule } from '@nestjs/common';
 import { APP_GUARD } from '@nestjs/core';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { ThrottlerModule, ThrottlerGuard } from '@nestjs/throttler';
@@ -17,10 +17,19 @@ import { OneDriveModule } from './providers/onedrive/onedrive.module';
 import { MonitoringModule } from './monitoring/monitoring.module';
 import { AuthModule } from './auth/auth.module';
 import { JwtAuthGuard } from './auth/guards/jwt-auth.guard';
+import { validationSchema } from './config/env.validation';
+import { LoggerModule } from './common/logger/logger.module';
+import { CorrelationIdMiddleware } from './common/middleware/correlation-id.middleware';
+import { RequestLoggerMiddleware } from './common/middleware/request-logger.middleware';
 
 @Module({
   imports: [
-    ConfigModule.forRoot({ isGlobal: true }),
+    ConfigModule.forRoot({
+      isGlobal: true,
+      validationSchema,
+      validationOptions: { abortEarly: false },
+    }),
+    LoggerModule,
     ScheduleModule.forRoot(),
     ThrottlerModule.forRootAsync({
       imports: [ConfigModule],
@@ -29,8 +38,8 @@ import { JwtAuthGuard } from './auth/guards/jwt-auth.guard';
         throttlers: [
           {
             name: 'default',
-            ttl: config.get<number>('THROTTLE_TTL', 60000),
-            limit: config.get<number>('THROTTLE_LIMIT', 100),
+            ttl: config.get<number>('THROTTLE_TTL'),
+            limit: config.get<number>('THROTTLE_LIMIT'),
           },
         ],
       }),
@@ -50,14 +59,14 @@ import { JwtAuthGuard } from './auth/guards/jwt-auth.guard';
   controllers: [AppController],
   providers: [
     AppService,
-    {
-      provide: APP_GUARD,
-      useClass: ThrottlerGuard,
-    },
-    {
-      provide: APP_GUARD,
-      useClass: JwtAuthGuard,
-    },
+    { provide: APP_GUARD, useClass: ThrottlerGuard },
+    { provide: APP_GUARD, useClass: JwtAuthGuard },
   ],
 })
-export class AppModule {}
+export class AppModule implements NestModule {
+  configure(consumer: MiddlewareConsumer): void {
+    consumer
+      .apply(CorrelationIdMiddleware, RequestLoggerMiddleware)
+      .forRoutes('*');
+  }
+}

@@ -8,10 +8,10 @@ import { EncryptionService } from '../utils/encryption.util';
 import { CleanupService } from './services/cleanup.service';
 import { GoogleCloudModule } from '../providers/google-cloud/google-cloud.module';
 import { DropboxModule } from '../providers/dropbox/dropbox.module';
-import { MegaModule } from 'src/providers/mega/mega.module';
+import { MegaModule } from '../providers/mega/mega.module';
 import { GoogleDriveModule } from '../providers/google-drive/google-drive.module';
-import { BackblazeModule } from 'src/providers/backblaze/backblaze.module';
-import { OneDriveModule } from 'src/providers/onedrive/onedrive.module';
+import { BackblazeModule } from '../providers/backblaze/backblaze.module';
+import { OneDriveModule } from '../providers/onedrive/onedrive.module';
 
 @Module({
   imports: [
