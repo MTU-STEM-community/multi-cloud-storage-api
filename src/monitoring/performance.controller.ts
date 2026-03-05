@@ -1,16 +1,17 @@
 import { Controller, Get, Query, ParseIntPipe } from '@nestjs/common';
-import { ApiTags } from '@nestjs/swagger';
+import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 import { PerformanceMetricsService } from './performance-metrics.service';
 import {
-  ApiSystemMetrics,
-  ApiProviderPerformance,
-  ApiPerformanceSummary,
   ApiDetailedMetrics,
-  ApiSlowOperations,
   ApiPerformanceDashboard,
+  ApiPerformanceSummary,
+  ApiProviderPerformance,
+  ApiSlowOperations,
+  ApiSystemMetrics,
 } from './decorators/monitoring-api.decorators';
 
 @ApiTags('monitoring')
+@ApiBearerAuth('JWT-auth')
 @Controller('monitoring')
 export class PerformanceController {
   constructor(private readonly metricsService: PerformanceMetricsService) {}
@@ -41,26 +42,19 @@ export class PerformanceController {
     @Query('provider') provider?: string,
   ) {
     const startTime = new Date(Date.now() - hours * 60 * 60 * 1000);
-    const metrics = this.metricsService.getMetrics(
-      startTime,
-      undefined,
-      operation,
-      provider,
-    );
-
+    const metrics = this.metricsService.getMetrics(startTime, undefined, operation, provider);
     const totalDuration = metrics.reduce((sum, m) => sum + m.duration, 0);
     const successfulMetrics = metrics.filter((m) => m.success);
 
     return {
-      metrics: metrics.slice(-100), // Return last 100 metrics to avoid huge responses
+      metrics: metrics.slice(-100),
       summary: {
         totalMetrics: metrics.length,
         averageResponseTime:
           metrics.length > 0 ? Math.round(totalDuration / metrics.length) : 0,
         successRate:
           metrics.length > 0
-            ? Math.round((successfulMetrics.length / metrics.length) * 10000) /
-              100
+            ? Math.round((successfulMetrics.length / metrics.length) * 10000) / 100
             : 0,
         timeRange: `last_${hours}_hours`,
       },
@@ -70,8 +64,7 @@ export class PerformanceController {
   @Get('performance/slow-operations')
   @ApiSlowOperations()
   getSlowOperations(
-    @Query('threshold', new ParseIntPipe({ optional: true }))
-    threshold: number = 5000,
+    @Query('threshold', new ParseIntPipe({ optional: true })) threshold: number = 5000,
     @Query('hours', new ParseIntPipe({ optional: true })) hours: number = 24,
   ) {
     const startTime = new Date(Date.now() - hours * 60 * 60 * 1000);
@@ -81,18 +74,15 @@ export class PerformanceController {
     return {
       threshold,
       timeRange: `last_${hours}_hours`,
-      slowOperations: slowOperations.slice(-50), // Last 50 slow operations
+      slowOperations: slowOperations.slice(-50),
       summary: {
         totalSlowOperations: slowOperations.length,
         slowestOperation:
-          slowOperations.length > 0
-            ? Math.max(...slowOperations.map((m) => m.duration))
-            : 0,
+          slowOperations.length > 0 ? Math.max(...slowOperations.map((m) => m.duration)) : 0,
         averageSlowDuration:
           slowOperations.length > 0
             ? Math.round(
-                slowOperations.reduce((sum, m) => sum + m.duration, 0) /
-                  slowOperations.length,
+                slowOperations.reduce((sum, m) => sum + m.duration, 0) / slowOperations.length,
               )
             : 0,
       },
@@ -104,15 +94,11 @@ export class PerformanceController {
   getDashboard() {
     const systemMetrics = this.metricsService.getSystemMetrics();
     const providerPerformance = this.metricsService.getProviderPerformance();
-    const performanceSummary =
-      this.metricsService.getHourlyPerformanceSummary();
+    const performanceSummary = this.metricsService.getHourlyPerformanceSummary();
 
-    // Get recent slow operations
     const oneHourAgo = new Date(Date.now() - 60 * 60 * 1000);
     const recentMetrics = this.metricsService.getMetrics(oneHourAgo);
-    const slowOperations = recentMetrics
-      .filter((m) => m.duration > 3000)
-      .slice(-10);
+    const slowOperations = recentMetrics.filter((m) => m.duration > 3000).slice(-10);
 
     return {
       timestamp: new Date(),
@@ -121,12 +107,8 @@ export class PerformanceController {
       hourlyActivity: performanceSummary,
       alerts: {
         slowOperations: slowOperations.length,
-        unhealthyProviders: providerPerformance.filter(
-          (p) => p.status === 'unhealthy',
-        ).length,
-        degradedProviders: providerPerformance.filter(
-          (p) => p.status === 'degraded',
-        ).length,
+        unhealthyProviders: providerPerformance.filter((p) => p.status === 'unhealthy').length,
+        degradedProviders: providerPerformance.filter((p) => p.status === 'degraded').length,
         lowSuccessRate: systemMetrics.successRate < 95,
       },
       recentSlowOperations: slowOperations.map((op) => ({
