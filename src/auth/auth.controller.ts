@@ -1,34 +1,32 @@
 import {
-  Controller,
-  Post,
   Body,
+  Controller,
+  Get,
   HttpCode,
   HttpStatus,
-  UseGuards,
-  Get,
+  Post,
   Request,
+  UseGuards,
 } from '@nestjs/common';
 import { ApiTags } from '@nestjs/swagger';
+import { AuthService } from './auth.service';
 import {
-  AuthService,
-  LoginDto,
-  RegisterDto,
-  ChangePasswordDto,
-} from './auth.service';
-import { JwtAuthGuard } from './guards/jwt-auth.guard';
-import { Public } from './decorators/public.decorator';
-import { AuthThrottle } from './decorators/throttle.decorator';
-import {
+  ApiChangePassword,
+  ApiGetProfile,
   ApiLogin,
   ApiRegister,
-  ApiGetProfile,
-  ApiChangePassword,
 } from './decorators/auth-api.decorator';
+import { AuthThrottle } from './decorators/throttle.decorator';
+import { Public } from './decorators/public.decorator';
+import { JwtAuthGuard } from './guards/jwt-auth.guard';
+import { LoginDto } from './dto/login.dto';
+import { RegisterDto } from './dto/register.dto';
+import { ChangePasswordDto } from './dto/change-password.dto';
 
 @ApiTags('Authentication')
 @Controller('auth')
 export class AuthController {
-  constructor(private authService: AuthService) {}
+  constructor(private readonly authService: AuthService) {}
 
   @Public()
   @AuthThrottle()
@@ -57,10 +55,7 @@ export class AuthController {
   @Post('change-password')
   @UseGuards(JwtAuthGuard)
   @ApiChangePassword()
-  async changePassword(
-    @Request() req: any,
-    @Body() changePasswordDto: ChangePasswordDto,
-  ) {
+  async changePassword(@Request() req: any, @Body() changePasswordDto: ChangePasswordDto) {
     return this.authService.changePassword(req.user.id, changePasswordDto);
   }
 }
