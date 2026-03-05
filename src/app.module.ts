@@ -17,10 +17,17 @@ import { OneDriveModule } from './providers/onedrive/onedrive.module';
 import { MonitoringModule } from './monitoring/monitoring.module';
 import { AuthModule } from './auth/auth.module';
 import { JwtAuthGuard } from './auth/guards/jwt-auth.guard';
+import { validationSchema } from './config/env.validation';
 
 @Module({
   imports: [
-    ConfigModule.forRoot({ isGlobal: true }),
+    ConfigModule.forRoot({
+      isGlobal: true,
+      validationSchema,
+      validationOptions: {
+        abortEarly: false,
+      },
+    }),
     ScheduleModule.forRoot(),
     ThrottlerModule.forRootAsync({
       imports: [ConfigModule],
@@ -29,8 +36,8 @@ import { JwtAuthGuard } from './auth/guards/jwt-auth.guard';
         throttlers: [
           {
             name: 'default',
-            ttl: config.get<number>('THROTTLE_TTL', 60000),
-            limit: config.get<number>('THROTTLE_LIMIT', 100),
+            ttl: config.get<number>('THROTTLE_TTL'),
+            limit: config.get<number>('THROTTLE_LIMIT'),
           },
         ],
       }),

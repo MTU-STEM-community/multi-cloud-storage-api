@@ -6,9 +6,16 @@ import * as express from 'express';
 import { CloudStorageFilter } from './common/filters/cloud-storage.filter';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 import { PerformanceInterceptor } from './monitoring/performance.interceptor';
+import { ConfigService } from '@nestjs/config';
 
 async function bootstrap() {
-  const app = await NestFactory.create(AppModule);
+  const app = await NestFactory.create(AppModule, {
+    bufferLogs: true,
+  });
+
+  const configService = app.get(ConfigService);
+  const port = configService.get<number>('PORT', 3000);
+  const allowedOrigins = configService.get<string>('ALLOWED_ORIGINS', '');
 
   app.use(
     helmet({
@@ -16,8 +23,18 @@ async function bootstrap() {
     }),
   );
 
-  app.use(express.json({ limit: '1mb' }));
-  app.use(express.urlencoded({ extended: true, limit: '1mb' }));
+  app.enableCors({
+    origin: allowedOrigins
+      ? allowedOrigins.split(',').map((o) => o.trim())
+      : false,
+    methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
+    allowedHeaders: ['Content-Type', 'Authorization', 'x-correlation-id'],
+    exposedHeaders: ['x-correlation-id'],
+    credentials: true,
+  });
+
+  app.use(express.json({ limit: '10mb' }));
+  app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 
   app.useGlobalPipes(
     new ValidationPipe({
@@ -30,7 +47,7 @@ async function bootstrap() {
     }),
   );
 
-  const config = new DocumentBuilder()
+  const swaggerConfig = new DocumentBuilder()
     .setTitle('Multi-Cloud Storage API')
     .setDescription('API for managing files across multiple cloud providers')
     .setVersion('1.0')
@@ -44,21 +61,21 @@ async function bootstrap() {
         scheme: 'bearer',
         bearerFormat: 'JWT',
         name: 'JWT',
-        description: 'Enter JWT token',
+        description: 'Enter JWT access token',
         in: 'header',
       },
       'JWT-auth',
     )
     .build();
 
-  const document = SwaggerModule.createDocument(app, config);
+  const document = SwaggerModule.createDocument(app, swaggerConfig);
   SwaggerModule.setup('api/docs', app, document);
 
   const performanceInterceptor = app.get(PerformanceInterceptor);
   app.useGlobalFilters(new CloudStorageFilter());
   app.useGlobalInterceptors(performanceInterceptor);
 
-  await app.listen(3000);
+  await app.listen(port);
 }
 
 bootstrap();
