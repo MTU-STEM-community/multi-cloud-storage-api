@@ -1,11 +1,12 @@
-import { Injectable, BadRequestException } from '@nestjs/common';
+import { BadRequestException, Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
+import { Storage } from '@google-cloud/storage';
+import { Readable } from 'stream';
 import { PrismaService } from '../../prisma/prisma.service';
 import { EncryptionService } from '../../utils/encryption.util';
 import { FileListItem } from '../../common/interfaces/cloud-storage.interface';
 import { BaseCloudStorageProvider } from '../../common/providers/base-cloud-storage.provider';
-import { Storage } from '@google-cloud/storage';
-import { ProviderConfigService } from 'src/common/providers/provider-config.service';
+import { ProviderConfigService } from '../../common/providers/provider-config.service';
 
 @Injectable()
 export class GoogleCloudService extends BaseCloudStorageProvider {
@@ -15,13 +16,7 @@ export class GoogleCloudService extends BaseCloudStorageProvider {
     encryptionService: EncryptionService,
     providerConfigService: ProviderConfigService,
   ) {
-    super(
-      configService,
-      prisma,
-      encryptionService,
-      providerConfigService,
-      'GoogleCloud',
-    );
+    super(configService, prisma, encryptionService, providerConfigService, 'GoogleCloud');
   }
 
   protected validateConfiguration(): void {
@@ -37,6 +32,25 @@ export class GoogleCloudService extends BaseCloudStorageProvider {
     };
   }
 
+  private getStorageClient(): { storage: Storage; bucketName: string } {
+    const { projectId, bucketName, keyFilePath } =
+      this.providerConfigService.getGoogleCloudConfig();
+    return {
+      storage: new Storage({ projectId, keyFilename: keyFilePath }),
+      bucketName,
+    };
+  }
+
+  async ping(): Promise<void> {
+    return this.executeWithErrorHandling(async () => {
+      const { storage, bucketName } = this.getStorageClient();
+      const [exists] = await storage.bucket(bucketName).exists();
+      if (!exists) {
+        throw new Error(`Bucket '${bucketName}' does not exist or is inaccessible`);
+      }
+    }, 'Ping');
+  }
+
   async uploadFile(
     file: Express.Multer.File,
     fileName: string,
@@ -45,12 +59,8 @@ export class GoogleCloudService extends BaseCloudStorageProvider {
     return this.executeWithErrorHandling(async () => {
       this.validateFileOperation(file);
 
-      const { projectId, bucketName, keyFilePath } =
-        this.providerConfigService.getGoogleCloudConfig();
-
-      const storage = new Storage({ projectId, keyFilename: keyFilePath });
+      const { storage, bucketName } = this.getStorageClient();
       const bucket = storage.bucket(bucketName);
-
       const fullPath = this.constructFilePath(fileName, folderPath);
       const blob = bucket.file(fullPath);
 
@@ -60,14 +70,12 @@ export class GoogleCloudService extends BaseCloudStorageProvider {
             contentType: file.mimetype,
             metadata: {
               originalFileName: file.originalname,
-              folderPath: folderPath || '',
+              folderPath: folderPath ?? '',
             },
           },
         });
 
-        stream.on('error', (err) =>
-          reject(`Google Cloud upload error: ${err.message}`),
-        );
+        stream.on('error', (err) => reject(new Error(`Google Cloud upload error: ${err.message}`)));
         stream.on('finish', () => {
           resolve({
             url: `https://storage.googleapis.com/${bucketName}/${fullPath}`,
@@ -82,10 +90,7 @@ export class GoogleCloudService extends BaseCloudStorageProvider {
 
   async listFiles(folderPath?: string): Promise<FileListItem[]> {
     return this.executeWithErrorHandling(async () => {
-      const { projectId, bucketName, keyFilePath } =
-        this.providerConfigService.getGoogleCloudConfig();
-
-      const storage = new Storage({ projectId, keyFilename: keyFilePath });
+      const { storage, bucketName } = this.getStorageClient();
       const bucket = storage.bucket(bucketName);
 
       const options = folderPath ? { prefix: `${folderPath}/` } : {};
@@ -95,17 +100,17 @@ export class GoogleCloudService extends BaseCloudStorageProvider {
 
       if (folderPath) {
         const prefix = `${folderPath}/`;
-        const directoryContents = new Set<string>();
+        const seenFolders = new Set<string>();
 
-        files.forEach((file) => {
-          if (file.name === `${folderPath}/`) return;
+        for (const file of files) {
+          if (file.name === `${folderPath}/`) continue;
 
           const relativePath = file.name.substring(prefix.length);
 
           if (relativePath.includes('/')) {
             const nestedFolder = relativePath.split('/')[0];
-            if (!directoryContents.has(nestedFolder)) {
-              directoryContents.add(nestedFolder);
+            if (!seenFolders.has(nestedFolder)) {
+              seenFolders.add(nestedFolder);
               results.push({
                 name: nestedFolder,
                 size: '-',
@@ -117,29 +122,26 @@ export class GoogleCloudService extends BaseCloudStorageProvider {
             }
           } else {
             results.push({
-              name: file.name.split('/').pop() || '',
+              name: file.name.split('/').pop() ?? '',
               size: file.metadata.size ? String(file.metadata.size) : '-',
-              contentType: file.metadata.contentType || 'unknown',
-              created: file.metadata.timeCreated || '-',
-              updated: file.metadata.updated || '-',
+              contentType: file.metadata.contentType ?? 'unknown',
+              created: file.metadata.timeCreated ?? '-',
+              updated: file.metadata.updated ?? '-',
               originalName:
-                file.metadata.metadata?.originalFileName?.toString() ||
-                file.name,
+                file.metadata.metadata?.originalFileName?.toString() ?? file.name,
               path: file.name,
               isFolder: false,
             });
           }
-        });
-
-        return results;
+        }
       } else {
-        const rootContents = new Set<string>();
+        const seenFolders = new Set<string>();
 
-        files.forEach((file) => {
+        for (const file of files) {
           if (file.name.includes('/')) {
             const topFolder = file.name.split('/')[0];
-            if (!rootContents.has(topFolder)) {
-              rootContents.add(topFolder);
+            if (!seenFolders.has(topFolder)) {
+              seenFolders.add(topFolder);
               results.push({
                 name: topFolder,
                 size: '-',
@@ -153,52 +155,40 @@ export class GoogleCloudService extends BaseCloudStorageProvider {
             results.push({
               name: file.name,
               size: file.metadata.size ? String(file.metadata.size) : '-',
-              contentType: file.metadata.contentType || 'unknown',
-              created: file.metadata.timeCreated || '-',
-              updated: file.metadata.updated || '-',
+              contentType: file.metadata.contentType ?? 'unknown',
+              created: file.metadata.timeCreated ?? '-',
+              updated: file.metadata.updated ?? '-',
               originalName:
-                file.metadata.metadata?.originalFileName?.toString() ||
-                file.name,
+                file.metadata.metadata?.originalFileName?.toString() ?? file.name,
               path: file.name,
               isFolder: false,
             });
           }
-        });
-
-        return results;
+        }
       }
+
+      return results;
     }, 'List files');
   }
 
-  async downloadFile(fileId: string, folderPath?: string): Promise<Buffer> {
+  async downloadFile(fileId: string, folderPath?: string): Promise<Readable> {
     return this.executeWithErrorHandling(async () => {
-      const { projectId, bucketName, keyFilePath } =
-        this.providerConfigService.getGoogleCloudConfig();
-
-      const storage = new Storage({ projectId, keyFilename: keyFilePath });
-      const bucket = storage.bucket(bucketName);
-
+      const { storage, bucketName } = this.getStorageClient();
       const fullPath = folderPath ? `${folderPath}/${fileId}` : fileId;
-      const file = bucket.file(fullPath);
+      const file = storage.bucket(bucketName).file(fullPath);
 
-      try {
-        const [contents] = await file.download();
-        return contents;
-      } catch (error) {
-        throw new BadRequestException(
-          `Failed to download file from Google Cloud: ${error.message}`,
-        );
+      const [exists] = await file.exists();
+      if (!exists) {
+        throw new BadRequestException(`File '${fileId}' not found in Google Cloud Storage`);
       }
+
+      return file.createReadStream();
     }, 'Download file');
   }
 
   async deleteFile(fileId: string, folderPath?: string): Promise<void> {
     return this.executeWithErrorHandling(async () => {
-      const { projectId, bucketName, keyFilePath } =
-        this.providerConfigService.getGoogleCloudConfig();
-
-      const storage = new Storage({ projectId, keyFilename: keyFilePath });
-
+      const { storage, bucketName } = this.getStorageClient();
       const fullPath = this.constructFilePath(fileId, folderPath);
       await storage.bucket(bucketName).file(fullPath).delete();
     }, 'Delete file');
@@ -208,32 +198,19 @@ export class GoogleCloudService extends BaseCloudStorageProvider {
     this.validateFolderPath(folderPath);
 
     return this.executeWithErrorHandling(async () => {
-      const { projectId, bucketName, keyFilePath } =
-        this.providerConfigService.getGoogleCloudConfig();
-
-      const storage = new Storage({ projectId, keyFilename: keyFilePath });
+      const { storage, bucketName } = this.getStorageClient();
       const bucket = storage.bucket(bucketName);
       const folderFile = bucket.file(`${folderPath}/`);
 
-      await folderFile.save('', {
-        contentType: 'application/x-directory',
-      });
-
+      await folderFile.save('', { contentType: 'application/x-directory' });
       this.logger.log(`Folder '${folderPath}' created in Google Cloud Storage`);
     }, 'Create folder');
   }
 
   async deleteFolder(folderPath: string): Promise<void> {
     return this.executeWithErrorHandling(async () => {
-      const { projectId, bucketName, keyFilePath } =
-        this.providerConfigService.getGoogleCloudConfig();
-
-      const storage = new Storage({ projectId, keyFilename: keyFilePath });
-      const bucket = storage.bucket(bucketName);
-
-      await bucket.deleteFiles({
-        prefix: `${folderPath}/`,
-      });
+      const { storage, bucketName } = this.getStorageClient();
+      await storage.bucket(bucketName).deleteFiles({ prefix: `${folderPath}/` });
     }, 'Delete folder');
   }
 }

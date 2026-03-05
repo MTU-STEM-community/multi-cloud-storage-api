@@ -1,18 +1,18 @@
 import {
-  Injectable,
   BadRequestException,
+  Injectable,
   NotFoundException,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { PrismaService } from '../../prisma/prisma.service';
-import { EncryptionService } from '../../utils/encryption.util';
-import { FileListItem } from '../../common/interfaces/cloud-storage.interface';
 import { drive_v3 } from '@googleapis/drive';
 import { OAuth2Client } from 'google-auth-library';
 import { google } from 'googleapis';
 import { Readable } from 'stream';
+import { PrismaService } from '../../prisma/prisma.service';
+import { EncryptionService } from '../../utils/encryption.util';
+import { FileListItem } from '../../common/interfaces/cloud-storage.interface';
 import { BaseCloudStorageProvider } from '../../common/providers/base-cloud-storage.provider';
-import { ProviderConfigService } from 'src/common/providers/provider-config.service';
+import { ProviderConfigService } from '../../common/providers/provider-config.service';
 
 @Injectable()
 export class GoogleDriveService extends BaseCloudStorageProvider {
@@ -22,13 +22,7 @@ export class GoogleDriveService extends BaseCloudStorageProvider {
     encryptionService: EncryptionService,
     providerConfigService: ProviderConfigService,
   ) {
-    super(
-      configService,
-      prisma,
-      encryptionService,
-      providerConfigService,
-      'GoogleDrive',
-    );
+    super(configService, prisma, encryptionService, providerConfigService, 'GoogleDrive');
   }
 
   protected validateConfiguration(): void {
@@ -45,28 +39,20 @@ export class GoogleDriveService extends BaseCloudStorageProvider {
   }
 
   private async getDriveClient(): Promise<drive_v3.Drive> {
-    const { clientId, clientSecret, refreshToken } =
-      this.getCredentialsForEncryption();
+    const { clientId, clientSecret, refreshToken } = this.getCredentialsForEncryption();
 
     try {
       const auth = new OAuth2Client(clientId, clientSecret);
       auth.setCredentials({ refresh_token: refreshToken });
-
       return google.drive({ version: 'v3', auth });
     } catch (error) {
-      this.logger.error(
-        `Google Drive client initialization error: ${error.message}`,
-      );
       throw new BadRequestException(
         `Failed to initialize Google Drive client: ${error.message}`,
       );
     }
   }
 
-  private async getFolderId(
-    folderPath: string,
-    drive: drive_v3.Drive,
-  ): Promise<string> {
+  private async getFolderId(folderPath: string, drive: drive_v3.Drive): Promise<string> {
     if (!folderPath) return 'root';
 
     const folderNames = folderPath.split('/').filter((name) => name.length > 0);
@@ -84,14 +70,12 @@ export class GoogleDriveService extends BaseCloudStorageProvider {
       if (response.data.files && response.data.files.length > 0) {
         parentId = response.data.files[0].id;
       } else {
-        const folderMetadata = {
-          name: folderName,
-          mimeType: 'application/vnd.google-apps.folder',
-          parents: [parentId],
-        };
-
         const folder = await drive.files.create({
-          requestBody: folderMetadata,
+          requestBody: {
+            name: folderName,
+            mimeType: 'application/vnd.google-apps.folder',
+            parents: [parentId],
+          },
           fields: 'id',
         });
 
@@ -100,6 +84,13 @@ export class GoogleDriveService extends BaseCloudStorageProvider {
     }
 
     return parentId;
+  }
+
+  async ping(): Promise<void> {
+    return this.executeWithErrorHandling(async () => {
+      const drive = await this.getDriveClient();
+      await drive.about.get({ fields: 'user' });
+    }, 'Ping');
   }
 
   async uploadFile(
@@ -112,19 +103,9 @@ export class GoogleDriveService extends BaseCloudStorageProvider {
       const drive = await this.getDriveClient();
       const folderId = await this.getFolderId(folderPath, drive);
 
-      const fileMetadata = {
-        name: fileName,
-        parents: [folderId],
-      };
-
-      const media = {
-        mimeType: file.mimetype,
-        body: Readable.from(file.buffer),
-      };
-
       const response = await drive.files.create({
-        requestBody: fileMetadata,
-        media: media,
+        requestBody: { name: fileName, parents: [folderId] },
+        media: { mimeType: file.mimetype, body: Readable.from(file.buffer) },
         fields: 'id,webViewLink',
       });
 
@@ -134,10 +115,7 @@ export class GoogleDriveService extends BaseCloudStorageProvider {
 
       await drive.permissions.create({
         fileId: response.data.id,
-        requestBody: {
-          role: 'reader',
-          type: 'anyone',
-        },
+        requestBody: { role: 'reader', type: 'anyone' },
       });
 
       const fileInfo = await drive.files.get({
@@ -145,10 +123,7 @@ export class GoogleDriveService extends BaseCloudStorageProvider {
         fields: 'webViewLink',
       });
 
-      return {
-        url: fileInfo.data.webViewLink,
-        storageName: fileName,
-      };
+      return { url: fileInfo.data.webViewLink, storageName: fileName };
     }, 'Upload file');
   }
 
@@ -157,21 +132,18 @@ export class GoogleDriveService extends BaseCloudStorageProvider {
       const drive = await this.getDriveClient();
       const folderId = await this.getFolderId(folderPath, drive);
 
-      const query = `'${folderId}' in parents and trashed = false`;
       const response = await drive.files.list({
-        q: query,
+        q: `'${folderId}' in parents and trashed = false`,
         fields: 'files(id, name, mimeType, size, createdTime, modifiedTime)',
         spaces: 'drive',
       });
 
-      if (!response.data.files) {
-        return [];
-      }
+      if (!response.data.files) return [];
 
       return response.data.files.map((file) => ({
         name: file.name,
         size: file.size ? parseInt(file.size) : 'Unknown',
-        contentType: file.mimeType || 'Unknown',
+        contentType: file.mimeType ?? 'Unknown',
         created: file.createdTime,
         updated: file.modifiedTime,
         path: folderPath ? `${folderPath}/${file.name}` : file.name,
@@ -180,18 +152,15 @@ export class GoogleDriveService extends BaseCloudStorageProvider {
     }, 'List files');
   }
 
-  async downloadFile(fileId: string, folderPath?: string): Promise<Buffer> {
+  async downloadFile(fileId: string, folderPath?: string): Promise<Readable> {
     return this.executeWithErrorHandling(async () => {
       const drive = await this.getDriveClient();
-
       let driveFileId = fileId;
 
       if (folderPath) {
         const folderId = await this.getFolderId(folderPath, drive);
-        const query = `name = '${fileId}' and '${folderId}' in parents and trashed = false`;
-
         const response = await drive.files.list({
-          q: query,
+          q: `name = '${fileId}' and '${folderId}' in parents and trashed = false`,
           fields: 'files(id)',
           spaces: 'drive',
         });
@@ -199,36 +168,28 @@ export class GoogleDriveService extends BaseCloudStorageProvider {
         if (response.data.files && response.data.files.length > 0) {
           driveFileId = response.data.files[0].id;
         } else {
-          throw new NotFoundException(
-            `File '${fileId}' not found in ${folderPath}`,
-          );
+          throw new NotFoundException(`File '${fileId}' not found in ${folderPath}`);
         }
       }
 
       const response = await drive.files.get(
-        {
-          fileId: driveFileId,
-          alt: 'media',
-        },
-        { responseType: 'arraybuffer' },
+        { fileId: driveFileId, alt: 'media' },
+        { responseType: 'stream' },
       );
 
-      return Buffer.from(response.data as ArrayBuffer);
+      return response.data as unknown as Readable;
     }, 'Download file');
   }
 
   async deleteFile(fileId: string, folderPath?: string): Promise<void> {
     return this.executeWithErrorHandling(async () => {
       const drive = await this.getDriveClient();
-
       let driveFileId = fileId;
 
       if (folderPath) {
         const folderId = await this.getFolderId(folderPath, drive);
-        const query = `name = '${fileId}' and '${folderId}' in parents and trashed = false`;
-
         const response = await drive.files.list({
-          q: query,
+          q: `name = '${fileId}' and '${folderId}' in parents and trashed = false`,
           fields: 'files(id)',
           spaces: 'drive',
         });
@@ -236,15 +197,11 @@ export class GoogleDriveService extends BaseCloudStorageProvider {
         if (response.data.files && response.data.files.length > 0) {
           driveFileId = response.data.files[0].id;
         } else {
-          throw new NotFoundException(
-            `File '${fileId}' not found in ${folderPath}`,
-          );
+          throw new NotFoundException(`File '${fileId}' not found in ${folderPath}`);
         }
       }
 
-      await drive.files.delete({
-        fileId: driveFileId,
-      });
+      await drive.files.delete({ fileId: driveFileId });
     }, 'Delete file');
   }
 
@@ -264,10 +221,7 @@ export class GoogleDriveService extends BaseCloudStorageProvider {
     return this.executeWithErrorHandling(async () => {
       const drive = await this.getDriveClient();
       const folderId = await this.getFolderId(folderPath, drive);
-
-      await drive.files.delete({
-        fileId: folderId,
-      });
+      await drive.files.delete({ fileId: folderId });
     }, 'Delete folder');
   }
 }
