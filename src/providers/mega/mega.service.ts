@@ -26,7 +26,13 @@ export class MegaService extends BaseCloudStorageProvider {
     encryptionService: EncryptionService,
     providerConfigService: ProviderConfigService,
   ) {
-    super(configService, prisma, encryptionService, providerConfigService, 'Mega');
+    super(
+      configService,
+      prisma,
+      encryptionService,
+      providerConfigService,
+      'Mega',
+    );
   }
 
   protected validateConfiguration(): void {
@@ -105,7 +111,10 @@ export class MegaService extends BaseCloudStorageProvider {
     return targetFolder;
   }
 
-  private async createFolderPath(storage: megajs.Storage, folderPath: string): Promise<any> {
+  private async createFolderPath(
+    storage: megajs.Storage,
+    folderPath: string,
+  ): Promise<any> {
     let targetFolder: any = storage.root;
     const normalizedPath = this.normalizeFolderPath(folderPath);
     const folders = normalizedPath.split('/').filter((f) => f);
@@ -196,7 +205,9 @@ export class MegaService extends BaseCloudStorageProvider {
       return targetFolder.children.map((item: any) => ({
         name: item.name,
         size: item.directory ? '-' : item.size,
-        contentType: item.directory ? 'folder' : FileValidationPipe.getMimeType(item.name),
+        contentType: item.directory
+          ? 'folder'
+          : FileValidationPipe.getMimeType(item.name),
         created: new Date(item.timestamp * 1000).toISOString(),
         path: folderPath ? `${folderPath}/${item.name}` : item.name,
         isFolder: item.directory,
@@ -212,7 +223,9 @@ export class MegaService extends BaseCloudStorageProvider {
       });
 
       const targetFolder = await this.navigateToFolder(storage, folderPath);
-      const targetFile = targetFolder.children.find((item: any) => item.name === fileId);
+      const targetFile = targetFolder.children.find(
+        (item: any) => item.name === fileId,
+      );
 
       if (!targetFile) {
         throw new NotFoundException(`File '${fileId}' not found`);
@@ -237,7 +250,9 @@ export class MegaService extends BaseCloudStorageProvider {
       });
 
       const targetFolder = await this.navigateToFolder(storage, folderPath);
-      const targetFile = targetFolder.children.find((item: any) => item.name === fileId);
+      const targetFile = targetFolder.children.find(
+        (item: any) => item.name === fileId,
+      );
 
       if (!targetFile) {
         throw new BadRequestException(`File '${fileId}' not found`);

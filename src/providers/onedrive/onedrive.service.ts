@@ -19,7 +19,13 @@ export class OneDriveService extends BaseCloudStorageProvider {
     encryptionService: EncryptionService,
     providerConfigService: ProviderConfigService,
   ) {
-    super(configService, prisma, encryptionService, providerConfigService, 'OneDrive');
+    super(
+      configService,
+      prisma,
+      encryptionService,
+      providerConfigService,
+      'OneDrive',
+    );
   }
 
   protected validateConfiguration(): void {
@@ -87,7 +93,11 @@ export class OneDriveService extends BaseCloudStorageProvider {
 
           await axios.post(
             createUrl,
-            { name: folder, folder: {}, '@microsoft.graph.conflictBehavior': 'rename' },
+            {
+              name: folder,
+              folder: {},
+              '@microsoft.graph.conflictBehavior': 'rename',
+            },
             { headers },
           );
         } else {
@@ -146,7 +156,9 @@ export class OneDriveService extends BaseCloudStorageProvider {
       return response.data.value.map((item: any) => ({
         name: item.name,
         size: item.folder ? '-' : item.size.toString(),
-        contentType: item.folder ? 'folder' : FileValidationPipe.getMimeType(item.name),
+        contentType: item.folder
+          ? 'folder'
+          : FileValidationPipe.getMimeType(item.name),
         created: item.createdDateTime,
         updated: item.lastModifiedDateTime,
         path: folderPath ? `${folderPath}/${item.name}` : item.name,
@@ -160,10 +172,13 @@ export class OneDriveService extends BaseCloudStorageProvider {
       const headers = await this.getApiHeaders();
       const filePath = this.constructFilePath(fileId, folderPath);
 
-      const response = await axios.get(`${this.baseUrl}/root:/${filePath}:/content`, {
-        headers,
-        responseType: 'stream',
-      });
+      const response = await axios.get(
+        `${this.baseUrl}/root:/${filePath}:/content`,
+        {
+          headers,
+          responseType: 'stream',
+        },
+      );
 
       return response.data as Readable;
     }, 'Download file');
@@ -192,7 +207,9 @@ export class OneDriveService extends BaseCloudStorageProvider {
     return this.executeWithErrorHandling(async () => {
       const headers = await this.getApiHeaders();
       const normalizedPath = this.normalizeFolderPath(folderPath);
-      await axios.delete(`${this.baseUrl}/root:/${normalizedPath}`, { headers });
+      await axios.delete(`${this.baseUrl}/root:/${normalizedPath}`, {
+        headers,
+      });
     }, 'Delete folder');
   }
 }

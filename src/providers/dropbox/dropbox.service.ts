@@ -16,7 +16,13 @@ export class DropboxService extends BaseCloudStorageProvider {
     encryptionService: EncryptionService,
     providerConfigService: ProviderConfigService,
   ) {
-    super(configService, prisma, encryptionService, providerConfigService, 'Dropbox');
+    super(
+      configService,
+      prisma,
+      encryptionService,
+      providerConfigService,
+      'Dropbox',
+    );
   }
 
   protected validateConfiguration(): void {
@@ -97,7 +103,8 @@ export class DropboxService extends BaseCloudStorageProvider {
       const response = await dropbox.filesDownload({ path });
 
       const fileContents =
-        (response.result as any).fileBinary || (response.result as any).fileContents;
+        (response.result as any).fileBinary ||
+        (response.result as any).fileContents;
 
       if (!fileContents) {
         throw new Error('Failed to retrieve file contents from Dropbox');

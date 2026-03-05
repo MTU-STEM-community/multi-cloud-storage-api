@@ -16,7 +16,13 @@ export class GoogleCloudService extends BaseCloudStorageProvider {
     encryptionService: EncryptionService,
     providerConfigService: ProviderConfigService,
   ) {
-    super(configService, prisma, encryptionService, providerConfigService, 'GoogleCloud');
+    super(
+      configService,
+      prisma,
+      encryptionService,
+      providerConfigService,
+      'GoogleCloud',
+    );
   }
 
   protected validateConfiguration(): void {
@@ -46,7 +52,9 @@ export class GoogleCloudService extends BaseCloudStorageProvider {
       const { storage, bucketName } = this.getStorageClient();
       const [exists] = await storage.bucket(bucketName).exists();
       if (!exists) {
-        throw new Error(`Bucket '${bucketName}' does not exist or is inaccessible`);
+        throw new Error(
+          `Bucket '${bucketName}' does not exist or is inaccessible`,
+        );
       }
     }, 'Ping');
   }
@@ -75,7 +83,9 @@ export class GoogleCloudService extends BaseCloudStorageProvider {
           },
         });
 
-        stream.on('error', (err) => reject(new Error(`Google Cloud upload error: ${err.message}`)));
+        stream.on('error', (err) =>
+          reject(new Error(`Google Cloud upload error: ${err.message}`)),
+        );
         stream.on('finish', () => {
           resolve({
             url: `https://storage.googleapis.com/${bucketName}/${fullPath}`,
@@ -128,7 +138,8 @@ export class GoogleCloudService extends BaseCloudStorageProvider {
               created: file.metadata.timeCreated ?? '-',
               updated: file.metadata.updated ?? '-',
               originalName:
-                file.metadata.metadata?.originalFileName?.toString() ?? file.name,
+                file.metadata.metadata?.originalFileName?.toString() ??
+                file.name,
               path: file.name,
               isFolder: false,
             });
@@ -159,7 +170,8 @@ export class GoogleCloudService extends BaseCloudStorageProvider {
               created: file.metadata.timeCreated ?? '-',
               updated: file.metadata.updated ?? '-',
               originalName:
-                file.metadata.metadata?.originalFileName?.toString() ?? file.name,
+                file.metadata.metadata?.originalFileName?.toString() ??
+                file.name,
               path: file.name,
               isFolder: false,
             });
@@ -179,7 +191,9 @@ export class GoogleCloudService extends BaseCloudStorageProvider {
 
       const [exists] = await file.exists();
       if (!exists) {
-        throw new BadRequestException(`File '${fileId}' not found in Google Cloud Storage`);
+        throw new BadRequestException(
+          `File '${fileId}' not found in Google Cloud Storage`,
+        );
       }
 
       return file.createReadStream();
@@ -210,7 +224,9 @@ export class GoogleCloudService extends BaseCloudStorageProvider {
   async deleteFolder(folderPath: string): Promise<void> {
     return this.executeWithErrorHandling(async () => {
       const { storage, bucketName } = this.getStorageClient();
-      await storage.bucket(bucketName).deleteFiles({ prefix: `${folderPath}/` });
+      await storage
+        .bucket(bucketName)
+        .deleteFiles({ prefix: `${folderPath}/` });
     }, 'Delete folder');
   }
 }

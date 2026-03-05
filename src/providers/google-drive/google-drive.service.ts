@@ -22,7 +22,13 @@ export class GoogleDriveService extends BaseCloudStorageProvider {
     encryptionService: EncryptionService,
     providerConfigService: ProviderConfigService,
   ) {
-    super(configService, prisma, encryptionService, providerConfigService, 'GoogleDrive');
+    super(
+      configService,
+      prisma,
+      encryptionService,
+      providerConfigService,
+      'GoogleDrive',
+    );
   }
 
   protected validateConfiguration(): void {
@@ -39,7 +45,8 @@ export class GoogleDriveService extends BaseCloudStorageProvider {
   }
 
   private async getDriveClient(): Promise<drive_v3.Drive> {
-    const { clientId, clientSecret, refreshToken } = this.getCredentialsForEncryption();
+    const { clientId, clientSecret, refreshToken } =
+      this.getCredentialsForEncryption();
 
     try {
       const auth = new OAuth2Client(clientId, clientSecret);
@@ -52,7 +59,10 @@ export class GoogleDriveService extends BaseCloudStorageProvider {
     }
   }
 
-  private async getFolderId(folderPath: string, drive: drive_v3.Drive): Promise<string> {
+  private async getFolderId(
+    folderPath: string,
+    drive: drive_v3.Drive,
+  ): Promise<string> {
     if (!folderPath) return 'root';
 
     const folderNames = folderPath.split('/').filter((name) => name.length > 0);
@@ -168,7 +178,9 @@ export class GoogleDriveService extends BaseCloudStorageProvider {
         if (response.data.files && response.data.files.length > 0) {
           driveFileId = response.data.files[0].id;
         } else {
-          throw new NotFoundException(`File '${fileId}' not found in ${folderPath}`);
+          throw new NotFoundException(
+            `File '${fileId}' not found in ${folderPath}`,
+          );
         }
       }
 
@@ -197,7 +209,9 @@ export class GoogleDriveService extends BaseCloudStorageProvider {
         if (response.data.files && response.data.files.length > 0) {
           driveFileId = response.data.files[0].id;
         } else {
-          throw new NotFoundException(`File '${fileId}' not found in ${folderPath}`);
+          throw new NotFoundException(
+            `File '${fileId}' not found in ${folderPath}`,
+          );
         }
       }
 

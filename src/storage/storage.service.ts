@@ -55,14 +55,19 @@ export class StorageService {
       throw new BadRequestException('Invalid file data');
     }
 
-    const storageProvider = await this.cloudStorageFactory.getProvider(provider);
+    const storageProvider =
+      await this.cloudStorageFactory.getProvider(provider);
     const storageName = storageProvider.generateStorageName(file.originalname);
 
     if (folderPath && storageProvider.createFolder) {
       await storageProvider.createFolder(folderPath);
     }
 
-    const uploadResult = await storageProvider.uploadFile(file, storageName, folderPath);
+    const uploadResult = await storageProvider.uploadFile(
+      file,
+      storageName,
+      folderPath,
+    );
     const fileId = await storageProvider.saveFileRecord(
       file,
       uploadResult.url,
@@ -81,8 +86,12 @@ export class StorageService {
     };
   }
 
-  async listFilesFromProvider(provider: string, folderPath?: string): Promise<FileListItem[]> {
-    const storageProvider = await this.cloudStorageFactory.getProvider(provider);
+  async listFilesFromProvider(
+    provider: string,
+    folderPath?: string,
+  ): Promise<FileListItem[]> {
+    const storageProvider =
+      await this.cloudStorageFactory.getProvider(provider);
     return storageProvider.listFiles(folderPath);
   }
 
@@ -109,7 +118,9 @@ export class StorageService {
     );
 
     if (!hasProvider) {
-      throw new NotFoundException(`File '${fileId}' not found in ${provider} storage`);
+      throw new NotFoundException(
+        `File '${fileId}' not found in ${provider} storage`,
+      );
     }
 
     this.prisma.file
@@ -118,10 +129,13 @@ export class StorageService {
         data: { downloadCount: { increment: 1 }, lastAccessedAt: new Date() },
       })
       .catch((err) => {
-        this.logger.warn(`Failed to update download stats for file ${fileId}: ${err.message}`);
+        this.logger.warn(
+          `Failed to update download stats for file ${fileId}: ${err.message}`,
+        );
       });
 
-    const storageProvider = await this.cloudStorageFactory.getProvider(provider);
+    const storageProvider =
+      await this.cloudStorageFactory.getProvider(provider);
     return storageProvider.downloadFile(file.storageName, file.path);
   }
 
@@ -140,7 +154,9 @@ export class StorageService {
     }
 
     if (file.userId && file.userId !== requestingUserId) {
-      throw new ForbiddenException('You do not have permission to delete this file');
+      throw new ForbiddenException(
+        'You do not have permission to delete this file',
+      );
     }
 
     const cloudStorage = file.cloudStorages.find(
@@ -148,10 +164,13 @@ export class StorageService {
     );
 
     if (!cloudStorage) {
-      throw new NotFoundException(`File '${fileId}' not found in ${provider} storage`);
+      throw new NotFoundException(
+        `File '${fileId}' not found in ${provider} storage`,
+      );
     }
 
-    const storageProvider = await this.cloudStorageFactory.getProvider(provider);
+    const storageProvider =
+      await this.cloudStorageFactory.getProvider(provider);
     await storageProvider.deleteFile(file.storageName, file.path);
 
     await this.prisma.$transaction(async (tx) => {
@@ -172,24 +191,32 @@ export class StorageService {
     this.logger.log(`File deleted from ${provider}: ${file.name}`);
   }
 
-  async createFolderInProvider(provider: string, folderPath: string): Promise<void> {
+  async createFolderInProvider(
+    provider: string,
+    folderPath: string,
+  ): Promise<void> {
     if (!folderPath) {
       throw new BadRequestException('Folder path is required');
     }
 
-    const storageProvider = await this.cloudStorageFactory.getProvider(provider);
+    const storageProvider =
+      await this.cloudStorageFactory.getProvider(provider);
 
     if (storageProvider.createFolder) {
       await storageProvider.createFolder(folderPath);
     }
   }
 
-  async deleteFolderFromProvider(provider: string, folderPath: string): Promise<void> {
+  async deleteFolderFromProvider(
+    provider: string,
+    folderPath: string,
+  ): Promise<void> {
     if (!folderPath) {
       throw new BadRequestException('Folder path is required');
     }
 
-    const storageProvider = await this.cloudStorageFactory.getProvider(provider);
+    const storageProvider =
+      await this.cloudStorageFactory.getProvider(provider);
     await storageProvider.deleteFolder(folderPath);
   }
 
@@ -198,14 +225,18 @@ export class StorageService {
     updateData: UpdateFileMetadataDto,
     requestingUserId: string,
   ): Promise<EnhancedFileInfo> {
-    const existing = await this.prisma.file.findUnique({ where: { id: fileId } });
+    const existing = await this.prisma.file.findUnique({
+      where: { id: fileId },
+    });
 
     if (!existing) {
       throw new NotFoundException(`File '${fileId}' not found`);
     }
 
     if (existing.userId && existing.userId !== requestingUserId) {
-      throw new ForbiddenException('You do not have permission to update this file');
+      throw new ForbiddenException(
+        'You do not have permission to update this file',
+      );
     }
 
     const updatedFile = await this.prisma.file.update({
@@ -215,7 +246,9 @@ export class StorageService {
         tags: updateData.tags,
         metadata: updateData.metadata ?? {},
         isPublic: updateData.isPublic,
-        expiresAt: updateData.expiresAt ? new Date(updateData.expiresAt) : undefined,
+        expiresAt: updateData.expiresAt
+          ? new Date(updateData.expiresAt)
+          : undefined,
       },
       include: { cloudStorages: true, fileTags: true },
     });
@@ -223,7 +256,10 @@ export class StorageService {
     return this.mapToEnhancedFileInfo(updatedFile);
   }
 
-  async getFileById(fileId: string, requestingUserId?: string): Promise<EnhancedFileInfo> {
+  async getFileById(
+    fileId: string,
+    requestingUserId?: string,
+  ): Promise<EnhancedFileInfo> {
     const file = await this.prisma.file.findUnique({
       where: { id: fileId },
       include: { cloudStorages: true, fileTags: true },
@@ -233,20 +269,30 @@ export class StorageService {
       throw new NotFoundException(`File '${fileId}' not found`);
     }
 
-    if (!file.isPublic && file.userId && requestingUserId && file.userId !== requestingUserId) {
+    if (
+      !file.isPublic &&
+      file.userId &&
+      requestingUserId &&
+      file.userId !== requestingUserId
+    ) {
       throw new ForbiddenException('You do not have access to this file');
     }
 
     this.prisma.file
       .update({ where: { id: fileId }, data: { lastAccessedAt: new Date() } })
       .catch((err) => {
-        this.logger.warn(`Failed to update lastAccessedAt for file ${fileId}: ${err.message}`);
+        this.logger.warn(
+          `Failed to update lastAccessedAt for file ${fileId}: ${err.message}`,
+        );
       });
 
     return this.mapToEnhancedFileInfo(file);
   }
 
-  async searchFiles(searchParams: FileSearchDto, userId: string): Promise<FileSearchResult> {
+  async searchFiles(
+    searchParams: FileSearchDto,
+    userId: string,
+  ): Promise<FileSearchResult> {
     const {
       page = 1,
       limit = 20,
@@ -381,7 +427,11 @@ export class StorageService {
     return this.prisma.fileTag.findMany({ orderBy: { name: 'asc' } });
   }
 
-  async addTagsToFile(fileId: string, dto: AddTagsToFileDto, requestingUserId: string) {
+  async addTagsToFile(
+    fileId: string,
+    dto: AddTagsToFileDto,
+    requestingUserId: string,
+  ) {
     const file = await this.prisma.file.findUnique({ where: { id: fileId } });
 
     if (!file) {
@@ -389,7 +439,9 @@ export class StorageService {
     }
 
     if (file.userId && file.userId !== requestingUserId) {
-      throw new ForbiddenException('You do not have permission to modify this file');
+      throw new ForbiddenException(
+        'You do not have permission to modify this file',
+      );
     }
 
     const tags = await this.prisma.fileTag.findMany({
@@ -524,8 +576,11 @@ export class StorageService {
             storageName: firstResult.storageName,
           });
         } else {
-          const storageProvider = await this.cloudStorageFactory.getProvider(provider);
-          const storageName = storageProvider.generateStorageName(file.originalname);
+          const storageProvider =
+            await this.cloudStorageFactory.getProvider(provider);
+          const storageName = storageProvider.generateStorageName(
+            file.originalname,
+          );
           const providerResult = await storageProvider.uploadFile(
             file,
             storageName,
@@ -591,7 +646,9 @@ export class StorageService {
         },
         userId,
       ).catch((err) => {
-        this.logger.warn(`Failed to update metadata after multi-provider upload: ${err.message}`);
+        this.logger.warn(
+          `Failed to update metadata after multi-provider upload: ${err.message}`,
+        );
       });
     }
 
@@ -612,7 +669,9 @@ export class StorageService {
     }
 
     if (file.userId && file.userId !== requestingUserId) {
-      throw new ForbiddenException('You do not have permission to delete this file');
+      throw new ForbiddenException(
+        'You do not have permission to delete this file',
+      );
     }
 
     const result: MultiProviderDeleteResult = {
@@ -640,7 +699,11 @@ export class StorageService {
           continue;
         }
 
-        await this.deleteFileFromProvider(provider, deleteData.fileId, requestingUserId);
+        await this.deleteFileFromProvider(
+          provider,
+          deleteData.fileId,
+          requestingUserId,
+        );
         result.results.push({ provider, success: true });
         result.successful++;
       } catch (error) {

@@ -33,7 +33,13 @@ export class BackblazeService extends BaseCloudStorageProvider {
     encryptionService: EncryptionService,
     providerConfigService: ProviderConfigService,
   ) {
-    super(configService, prisma, encryptionService, providerConfigService, 'Backblaze');
+    super(
+      configService,
+      prisma,
+      encryptionService,
+      providerConfigService,
+      'Backblaze',
+    );
   }
 
   protected validateConfiguration(): void {
@@ -51,13 +57,18 @@ export class BackblazeService extends BaseCloudStorageProvider {
     }
 
     const { keyId, applicationKey } = this.getCredentialsForEncryption();
-    const credentials = Buffer.from(`${keyId}:${applicationKey}`).toString('base64');
+    const credentials = Buffer.from(`${keyId}:${applicationKey}`).toString(
+      'base64',
+    );
 
     try {
-      const response = await fetch(`${this.B2_API_URL}/b2api/v2/b2_authorize_account`, {
-        method: 'GET',
-        headers: { Authorization: `Basic ${credentials}` },
-      });
+      const response = await fetch(
+        `${this.B2_API_URL}/b2api/v2/b2_authorize_account`,
+        {
+          method: 'GET',
+          headers: { Authorization: `Basic ${credentials}` },
+        },
+      );
 
       const responseText = await response.text();
 
@@ -69,7 +80,9 @@ export class BackblazeService extends BaseCloudStorageProvider {
         } catch {
           // use raw text
         }
-        throw new Error(`Authentication failed (${response.status}): ${errorDetails}`);
+        throw new Error(
+          `Authentication failed (${response.status}): ${errorDetails}`,
+        );
       }
 
       const data = JSON.parse(responseText);
@@ -85,7 +98,9 @@ export class BackblazeService extends BaseCloudStorageProvider {
       return this.authCache;
     } catch (error) {
       this.authCache = null;
-      throw new BadRequestException(`Failed to authenticate with B2: ${error.message}`);
+      throw new BadRequestException(
+        `Failed to authenticate with B2: ${error.message}`,
+      );
     }
   }
 
@@ -95,8 +110,14 @@ export class BackblazeService extends BaseCloudStorageProvider {
 
     const response = await fetch(`${apiUrl}/b2api/v2/b2_list_buckets`, {
       method: 'POST',
-      headers: { Authorization: authorizationToken, 'Content-Type': 'application/json' },
-      body: JSON.stringify({ accountId, bucketTypes: ['allPrivate', 'allPublic'] }),
+      headers: {
+        Authorization: authorizationToken,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        accountId,
+        bucketTypes: ['allPrivate', 'allPublic'],
+      }),
     });
 
     const responseText = await response.text();
@@ -128,7 +149,10 @@ export class BackblazeService extends BaseCloudStorageProvider {
 
     const response = await fetch(`${apiUrl}/b2api/v2/b2_get_upload_url`, {
       method: 'POST',
-      headers: { Authorization: authorizationToken, 'Content-Type': 'application/json' },
+      headers: {
+        Authorization: authorizationToken,
+        'Content-Type': 'application/json',
+      },
       body: JSON.stringify({ bucketId }),
     });
 
@@ -141,7 +165,10 @@ export class BackblazeService extends BaseCloudStorageProvider {
     }
 
     const data = JSON.parse(responseText);
-    return { uploadUrl: data.uploadUrl, authorizationToken: data.authorizationToken };
+    return {
+      uploadUrl: data.uploadUrl,
+      authorizationToken: data.authorizationToken,
+    };
   }
 
   async ping(): Promise<void> {
@@ -159,9 +186,13 @@ export class BackblazeService extends BaseCloudStorageProvider {
       this.validateFileOperation(file);
 
       const bucketId = await this.getBucketId();
-      const { uploadUrl, authorizationToken } = await this.getUploadUrl(bucketId);
+      const { uploadUrl, authorizationToken } =
+        await this.getUploadUrl(bucketId);
       const fullFileName = this.constructFilePath(fileName, folderPath);
-      const sha1Hash = crypto.createHash('sha1').update(file.buffer).digest('hex');
+      const sha1Hash = crypto
+        .createHash('sha1')
+        .update(file.buffer)
+        .digest('hex');
 
       const response = await fetch(uploadUrl, {
         method: 'POST',
@@ -199,7 +230,10 @@ export class BackblazeService extends BaseCloudStorageProvider {
 
       const response = await fetch(`${apiUrl}/b2api/v2/b2_list_file_names`, {
         method: 'POST',
-        headers: { Authorization: authorizationToken, 'Content-Type': 'application/json' },
+        headers: {
+          Authorization: authorizationToken,
+          'Content-Type': 'application/json',
+        },
         body: JSON.stringify({
           bucketId,
           startFileName: folderPath ? `${folderPath}/` : undefined,
@@ -218,7 +252,8 @@ export class BackblazeService extends BaseCloudStorageProvider {
       return data.files.map((file: any) => ({
         name: file.fileName.split('/').pop(),
         size: file.size,
-        contentType: file.contentType ?? FileValidationPipe.getMimeType(file.fileName),
+        contentType:
+          file.contentType ?? FileValidationPipe.getMimeType(file.fileName),
         created: new Date(file.uploadTimestamp).toISOString(),
         updated: new Date(file.uploadTimestamp).toISOString(),
         path: file.fileName,
@@ -233,31 +268,53 @@ export class BackblazeService extends BaseCloudStorageProvider {
       const bucketId = await this.getBucketId();
       const fullFileName = this.constructFilePath(fileId, folderPath);
 
-      const listResponse = await fetch(`${apiUrl}/b2api/v2/b2_list_file_names`, {
-        method: 'POST',
-        headers: { Authorization: authorizationToken, 'Content-Type': 'application/json' },
-        body: JSON.stringify({ bucketId, startFileName: fullFileName, maxFileCount: 1 }),
-      });
+      const listResponse = await fetch(
+        `${apiUrl}/b2api/v2/b2_list_file_names`,
+        {
+          method: 'POST',
+          headers: {
+            Authorization: authorizationToken,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            bucketId,
+            startFileName: fullFileName,
+            maxFileCount: 1,
+          }),
+        },
+      );
 
       if (!listResponse.ok) {
-        throw new Error(`HTTP ${listResponse.status}: ${await listResponse.text()}`);
+        throw new Error(
+          `HTTP ${listResponse.status}: ${await listResponse.text()}`,
+        );
       }
 
       const listData = await listResponse.json();
-      const fileInfo = listData.files.find((f: any) => f.fileName === fullFileName);
+      const fileInfo = listData.files.find(
+        (f: any) => f.fileName === fullFileName,
+      );
 
       if (!fileInfo) {
         throw new NotFoundException(`File '${fileId}' not found`);
       }
 
-      const downloadResponse = await fetch(`${apiUrl}/b2api/v2/b2_download_file_by_id`, {
-        method: 'POST',
-        headers: { Authorization: authorizationToken, 'Content-Type': 'application/json' },
-        body: JSON.stringify({ fileId: fileInfo.fileId }),
-      });
+      const downloadResponse = await fetch(
+        `${apiUrl}/b2api/v2/b2_download_file_by_id`,
+        {
+          method: 'POST',
+          headers: {
+            Authorization: authorizationToken,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({ fileId: fileInfo.fileId }),
+        },
+      );
 
       if (!downloadResponse.ok) {
-        throw new Error(`HTTP ${downloadResponse.status}: ${await downloadResponse.text()}`);
+        throw new Error(
+          `HTTP ${downloadResponse.status}: ${await downloadResponse.text()}`,
+        );
       }
 
       const passThrough = new PassThrough();
@@ -288,31 +345,56 @@ export class BackblazeService extends BaseCloudStorageProvider {
       const bucketId = await this.getBucketId();
       const fullFileName = this.constructFilePath(fileId, folderPath);
 
-      const listResponse = await fetch(`${apiUrl}/b2api/v2/b2_list_file_names`, {
-        method: 'POST',
-        headers: { Authorization: authorizationToken, 'Content-Type': 'application/json' },
-        body: JSON.stringify({ bucketId, startFileName: fullFileName, maxFileCount: 1 }),
-      });
+      const listResponse = await fetch(
+        `${apiUrl}/b2api/v2/b2_list_file_names`,
+        {
+          method: 'POST',
+          headers: {
+            Authorization: authorizationToken,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            bucketId,
+            startFileName: fullFileName,
+            maxFileCount: 1,
+          }),
+        },
+      );
 
       if (!listResponse.ok) {
-        throw new Error(`HTTP ${listResponse.status}: ${await listResponse.text()}`);
+        throw new Error(
+          `HTTP ${listResponse.status}: ${await listResponse.text()}`,
+        );
       }
 
       const listData = await listResponse.json();
-      const fileInfo = listData.files.find((f: any) => f.fileName === fullFileName);
+      const fileInfo = listData.files.find(
+        (f: any) => f.fileName === fullFileName,
+      );
 
       if (!fileInfo) {
         throw new NotFoundException(`File '${fileId}' not found`);
       }
 
-      const deleteResponse = await fetch(`${apiUrl}/b2api/v2/b2_delete_file_version`, {
-        method: 'POST',
-        headers: { Authorization: authorizationToken, 'Content-Type': 'application/json' },
-        body: JSON.stringify({ fileId: fileInfo.fileId, fileName: fileInfo.fileName }),
-      });
+      const deleteResponse = await fetch(
+        `${apiUrl}/b2api/v2/b2_delete_file_version`,
+        {
+          method: 'POST',
+          headers: {
+            Authorization: authorizationToken,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            fileId: fileInfo.fileId,
+            fileName: fileInfo.fileName,
+          }),
+        },
+      );
 
       if (!deleteResponse.ok) {
-        throw new Error(`HTTP ${deleteResponse.status}: ${await deleteResponse.text()}`);
+        throw new Error(
+          `HTTP ${deleteResponse.status}: ${await deleteResponse.text()}`,
+        );
       }
 
       this.logger.log(`File deleted from B2: ${fullFileName}`);
@@ -324,10 +406,14 @@ export class BackblazeService extends BaseCloudStorageProvider {
 
     return this.executeWithErrorHandling(async () => {
       const bucketId = await this.getBucketId();
-      const { uploadUrl, authorizationToken } = await this.getUploadUrl(bucketId);
+      const { uploadUrl, authorizationToken } =
+        await this.getUploadUrl(bucketId);
       const folderMarker = `${folderPath}/.b2_folder_placeholder`;
       const emptyBuffer = Buffer.from('');
-      const sha1Hash = crypto.createHash('sha1').update(emptyBuffer).digest('hex');
+      const sha1Hash = crypto
+        .createHash('sha1')
+        .update(emptyBuffer)
+        .digest('hex');
 
       const response = await fetch(uploadUrl, {
         method: 'POST',
@@ -358,8 +444,15 @@ export class BackblazeService extends BaseCloudStorageProvider {
 
       const response = await fetch(`${apiUrl}/b2api/v2/b2_list_file_names`, {
         method: 'POST',
-        headers: { Authorization: authorizationToken, 'Content-Type': 'application/json' },
-        body: JSON.stringify({ bucketId, prefix: `${folderPath}/`, maxFileCount: 10000 }),
+        headers: {
+          Authorization: authorizationToken,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          bucketId,
+          prefix: `${folderPath}/`,
+          maxFileCount: 10000,
+        }),
       });
 
       if (!response.ok) {
@@ -369,14 +462,25 @@ export class BackblazeService extends BaseCloudStorageProvider {
       const data = await response.json();
 
       for (const file of data.files) {
-        const deleteResponse = await fetch(`${apiUrl}/b2api/v2/b2_delete_file_version`, {
-          method: 'POST',
-          headers: { Authorization: authorizationToken, 'Content-Type': 'application/json' },
-          body: JSON.stringify({ fileId: file.fileId, fileName: file.fileName }),
-        });
+        const deleteResponse = await fetch(
+          `${apiUrl}/b2api/v2/b2_delete_file_version`,
+          {
+            method: 'POST',
+            headers: {
+              Authorization: authorizationToken,
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+              fileId: file.fileId,
+              fileName: file.fileName,
+            }),
+          },
+        );
 
         if (!deleteResponse.ok) {
-          throw new Error(`HTTP ${deleteResponse.status}: ${await deleteResponse.text()}`);
+          throw new Error(
+            `HTTP ${deleteResponse.status}: ${await deleteResponse.text()}`,
+          );
         }
       }
     }, 'Delete folder');

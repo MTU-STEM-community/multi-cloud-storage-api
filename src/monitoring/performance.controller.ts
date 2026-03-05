@@ -42,7 +42,12 @@ export class PerformanceController {
     @Query('provider') provider?: string,
   ) {
     const startTime = new Date(Date.now() - hours * 60 * 60 * 1000);
-    const metrics = this.metricsService.getMetrics(startTime, undefined, operation, provider);
+    const metrics = this.metricsService.getMetrics(
+      startTime,
+      undefined,
+      operation,
+      provider,
+    );
     const totalDuration = metrics.reduce((sum, m) => sum + m.duration, 0);
     const successfulMetrics = metrics.filter((m) => m.success);
 
@@ -54,7 +59,8 @@ export class PerformanceController {
           metrics.length > 0 ? Math.round(totalDuration / metrics.length) : 0,
         successRate:
           metrics.length > 0
-            ? Math.round((successfulMetrics.length / metrics.length) * 10000) / 100
+            ? Math.round((successfulMetrics.length / metrics.length) * 10000) /
+              100
             : 0,
         timeRange: `last_${hours}_hours`,
       },
@@ -64,7 +70,8 @@ export class PerformanceController {
   @Get('performance/slow-operations')
   @ApiSlowOperations()
   getSlowOperations(
-    @Query('threshold', new ParseIntPipe({ optional: true })) threshold: number = 5000,
+    @Query('threshold', new ParseIntPipe({ optional: true }))
+    threshold: number = 5000,
     @Query('hours', new ParseIntPipe({ optional: true })) hours: number = 24,
   ) {
     const startTime = new Date(Date.now() - hours * 60 * 60 * 1000);
@@ -78,11 +85,14 @@ export class PerformanceController {
       summary: {
         totalSlowOperations: slowOperations.length,
         slowestOperation:
-          slowOperations.length > 0 ? Math.max(...slowOperations.map((m) => m.duration)) : 0,
+          slowOperations.length > 0
+            ? Math.max(...slowOperations.map((m) => m.duration))
+            : 0,
         averageSlowDuration:
           slowOperations.length > 0
             ? Math.round(
-                slowOperations.reduce((sum, m) => sum + m.duration, 0) / slowOperations.length,
+                slowOperations.reduce((sum, m) => sum + m.duration, 0) /
+                  slowOperations.length,
               )
             : 0,
       },
@@ -94,11 +104,14 @@ export class PerformanceController {
   getDashboard() {
     const systemMetrics = this.metricsService.getSystemMetrics();
     const providerPerformance = this.metricsService.getProviderPerformance();
-    const performanceSummary = this.metricsService.getHourlyPerformanceSummary();
+    const performanceSummary =
+      this.metricsService.getHourlyPerformanceSummary();
 
     const oneHourAgo = new Date(Date.now() - 60 * 60 * 1000);
     const recentMetrics = this.metricsService.getMetrics(oneHourAgo);
-    const slowOperations = recentMetrics.filter((m) => m.duration > 3000).slice(-10);
+    const slowOperations = recentMetrics
+      .filter((m) => m.duration > 3000)
+      .slice(-10);
 
     return {
       timestamp: new Date(),
@@ -107,8 +120,12 @@ export class PerformanceController {
       hourlyActivity: performanceSummary,
       alerts: {
         slowOperations: slowOperations.length,
-        unhealthyProviders: providerPerformance.filter((p) => p.status === 'unhealthy').length,
-        degradedProviders: providerPerformance.filter((p) => p.status === 'degraded').length,
+        unhealthyProviders: providerPerformance.filter(
+          (p) => p.status === 'unhealthy',
+        ).length,
+        degradedProviders: providerPerformance.filter(
+          (p) => p.status === 'degraded',
+        ).length,
         lowSuccessRate: systemMetrics.successRate < 95,
       },
       recentSlowOperations: slowOperations.map((op) => ({

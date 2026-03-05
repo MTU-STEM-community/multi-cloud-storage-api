@@ -2,7 +2,10 @@ import { BadRequestException, Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { PrismaService } from '../../prisma/prisma.service';
 import { EncryptionService } from '../../utils/encryption.util';
-import { CloudStorageProvider, FileListItem } from '../interfaces/cloud-storage.interface';
+import {
+  CloudStorageProvider,
+  FileListItem,
+} from '../interfaces/cloud-storage.interface';
 import { ProviderConfigService } from './provider-config.service';
 import { Readable } from 'stream';
 
@@ -57,7 +60,8 @@ export abstract class BaseCloudStorageProvider implements CloudStorageProvider {
     folderPath?: string,
     userId?: string,
   ): Promise<string> {
-    const { encryptionSecret } = this.providerConfigService.getEncryptionConfig();
+    const { encryptionSecret } =
+      this.providerConfigService.getEncryptionConfig();
 
     this.validateConfiguration();
 
@@ -85,7 +89,9 @@ export abstract class BaseCloudStorageProvider implements CloudStorageProvider {
       },
     });
 
-    this.logger.log(`File record saved: ${file.originalname} (${savedFile.id})`);
+    this.logger.log(
+      `File record saved: ${file.originalname} (${savedFile.id})`,
+    );
 
     return savedFile.id;
   }

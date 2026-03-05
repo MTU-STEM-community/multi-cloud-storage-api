@@ -28,7 +28,8 @@ export class AppLogger implements LoggerService {
       timestamp: new Date().toISOString(),
       level,
       context: resolvedContext ?? this.context ?? 'Application',
-      message: typeof message === 'object' ? JSON.stringify(message) : String(message),
+      message:
+        typeof message === 'object' ? JSON.stringify(message) : String(message),
     };
 
     if (trace) {

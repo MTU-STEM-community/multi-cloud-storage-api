@@ -26,16 +26,27 @@ export class HealthCheckService {
 
   async checkHealth() {
     try {
-      const [dbCheck, memoryCheck, uptimeCheck, providersCheck, performanceCheck] =
-        await Promise.all([
-          this.checkDatabase(),
-          this.checkMemoryUsage(),
-          this.checkUptime(),
-          this.checkProviders(),
-          this.checkPerformance(),
-        ]);
+      const [
+        dbCheck,
+        memoryCheck,
+        uptimeCheck,
+        providersCheck,
+        performanceCheck,
+      ] = await Promise.all([
+        this.checkDatabase(),
+        this.checkMemoryUsage(),
+        this.checkUptime(),
+        this.checkProviders(),
+        this.checkPerformance(),
+      ]);
 
-      const checks = [dbCheck, memoryCheck, uptimeCheck, providersCheck, performanceCheck];
+      const checks = [
+        dbCheck,
+        memoryCheck,
+        uptimeCheck,
+        providersCheck,
+        performanceCheck,
+      ];
       const hasError = checks.some((c) => c.status === 'error');
       const hasWarning = checks.some((c) => c.status === 'warning');
       const status = hasError ? 'error' : hasWarning ? 'warning' : 'ok';
@@ -57,8 +68,10 @@ export class HealthCheckService {
       };
 
       if (status === 'error') {
-        if (dbCheck.status === 'error') result.error['database'] = (dbCheck as any).error;
-        if (memoryCheck.status === 'error') result.error['memory'] = (memoryCheck as any).error;
+        if (dbCheck.status === 'error')
+          result.error['database'] = (dbCheck as any).error;
+        if (memoryCheck.status === 'error')
+          result.error['memory'] = (memoryCheck as any).error;
         throw new HttpException(result, HttpStatus.SERVICE_UNAVAILABLE);
       }
 
@@ -138,7 +151,8 @@ export class HealthCheckService {
       SUPPORTED_PROVIDERS.map(async (provider) => {
         const start = Date.now();
         try {
-          const storageProvider = await this.cloudStorageFactory.getProvider(provider);
+          const storageProvider =
+            await this.cloudStorageFactory.getProvider(provider);
           await storageProvider.ping();
           const responseTime = Date.now() - start;
 
@@ -156,7 +170,11 @@ export class HealthCheckService {
     const results = providerChecks.map((check, index) =>
       check.status === 'fulfilled'
         ? check.value
-        : { provider: SUPPORTED_PROVIDERS[index], status: 'error', error: check.reason?.message },
+        : {
+            provider: SUPPORTED_PROVIDERS[index],
+            status: 'error',
+            error: check.reason?.message,
+          },
     );
 
     const healthyCount = results.filter((r) => r.status === 'ok').length;
@@ -164,7 +182,11 @@ export class HealthCheckService {
 
     return {
       status:
-        healthyCount === total ? 'ok' : healthyCount > total / 2 ? 'warning' : 'error',
+        healthyCount === total
+          ? 'ok'
+          : healthyCount > total / 2
+            ? 'warning'
+            : 'error',
       healthy: healthyCount,
       total,
       providers: results,
@@ -176,13 +198,20 @@ export class HealthCheckService {
       const systemMetrics = this.metricsService.getSystemMetrics();
       const providerPerformance = this.metricsService.getProviderPerformance();
 
-      const unhealthyCount = providerPerformance.filter((p) => p.status === 'unhealthy').length;
-      const degradedCount = providerPerformance.filter((p) => p.status === 'degraded').length;
+      const unhealthyCount = providerPerformance.filter(
+        (p) => p.status === 'unhealthy',
+      ).length;
+      const degradedCount = providerPerformance.filter(
+        (p) => p.status === 'degraded',
+      ).length;
 
       let status = 'ok';
       if (unhealthyCount > 0 || systemMetrics.successRate < 80) {
         status = 'error';
-      } else if (degradedCount > 0 || systemMetrics.averageResponseTime > 3000) {
+      } else if (
+        degradedCount > 0 ||
+        systemMetrics.averageResponseTime > 3000
+      ) {
         status = 'warning';
       }
 
@@ -194,7 +223,8 @@ export class HealthCheckService {
           totalRequests: systemMetrics.totalRequests,
         },
         providerSummary: {
-          healthy: providerPerformance.filter((p) => p.status === 'healthy').length,
+          healthy: providerPerformance.filter((p) => p.status === 'healthy')
+            .length,
           degraded: degradedCount,
           unhealthy: unhealthyCount,
         },

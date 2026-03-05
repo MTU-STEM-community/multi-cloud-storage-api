@@ -8,7 +8,12 @@ export class RequestLoggerMiddleware implements NestMiddleware {
 
     res.on('finish', () => {
       const duration = Date.now() - startTime;
-      const level = res.statusCode >= 500 ? 'error' : res.statusCode >= 400 ? 'warn' : 'info';
+      const level =
+        res.statusCode >= 500
+          ? 'error'
+          : res.statusCode >= 400
+            ? 'warn'
+            : 'info';
 
       const entry = {
         timestamp: new Date().toISOString(),

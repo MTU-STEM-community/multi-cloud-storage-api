@@ -27,10 +27,17 @@ export class AuthService {
     private readonly jwtService: JwtService,
   ) {}
 
-  async validateUser(username: string, password: string): Promise<Omit<User, 'password'> | null> {
+  async validateUser(
+    username: string,
+    password: string,
+  ): Promise<Omit<User, 'password'> | null> {
     const user = await this.prisma.user.findUnique({ where: { username } });
 
-    if (user && user.isActive && (await bcrypt.compare(password, user.password))) {
+    if (
+      user &&
+      user.isActive &&
+      (await bcrypt.compare(password, user.password))
+    ) {
       const { password: _, ...result } = user;
       return result;
     }
@@ -114,7 +121,10 @@ export class AuthService {
       throw new UnauthorizedException('Current password is incorrect');
     }
 
-    const hashedNewPassword = await bcrypt.hash(changePasswordDto.newPassword, 12);
+    const hashedNewPassword = await bcrypt.hash(
+      changePasswordDto.newPassword,
+      12,
+    );
 
     await this.prisma.user.update({
       where: { id: userId },

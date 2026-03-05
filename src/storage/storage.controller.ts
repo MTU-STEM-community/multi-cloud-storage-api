@@ -3,7 +3,6 @@ import {
   Body,
   Controller,
   Delete,
-  ForbiddenException,
   Get,
   HttpStatus,
   Logger,
@@ -123,7 +122,9 @@ export class StorageController {
     response.setHeader('Content-Length', fileInfo.size);
 
     stream.on('error', (err) => {
-      this.logger.error(`Download stream error for file ${fileId}: ${err.message}`);
+      this.logger.error(
+        `Download stream error for file ${fileId}: ${err.message}`,
+      );
       if (!response.headersSent) {
         response.status(HttpStatus.INTERNAL_SERVER_ERROR).json({
           statusCode: HttpStatus.INTERNAL_SERVER_ERROR,
@@ -136,7 +137,9 @@ export class StorageController {
     });
 
     response.on('error', (err) => {
-      this.logger.error(`Response stream error for file ${fileId}: ${err.message}`);
+      this.logger.error(
+        `Response stream error for file ${fileId}: ${err.message}`,
+      );
       stream.destroy();
     });
 
@@ -150,7 +153,11 @@ export class StorageController {
     @Param('fileId') fileId: string,
     @Request() req: any,
   ) {
-    await this.storageService.deleteFileFromProvider(provider, fileId, req.user.id);
+    await this.storageService.deleteFileFromProvider(
+      provider,
+      fileId,
+      req.user.id,
+    );
     return { message: `File ${fileId} successfully deleted from ${provider}` };
   }
 
@@ -161,7 +168,10 @@ export class StorageController {
     @Body('folderPath') folderPath: string,
   ) {
     await this.storageService.createFolderInProvider(provider, folderPath);
-    return { message: `Folder successfully created in ${provider}`, folderPath };
+    return {
+      message: `Folder successfully created in ${provider}`,
+      folderPath,
+    };
   }
 
   @Delete(':provider/folder')
@@ -171,7 +181,9 @@ export class StorageController {
     @Query('folderPath') folderPath: string,
   ) {
     await this.storageService.deleteFolderFromProvider(provider, folderPath);
-    return { message: `Folder '${folderPath}' successfully deleted from ${provider}` };
+    return {
+      message: `Folder '${folderPath}' successfully deleted from ${provider}`,
+    };
   }
 
   @Patch('files/:fileId/metadata')
@@ -181,7 +193,11 @@ export class StorageController {
     @Body() updateData: UpdateFileMetadataDto,
     @Request() req: any,
   ) {
-    return this.storageService.updateFileMetadata(fileId, updateData, req.user.id);
+    return this.storageService.updateFileMetadata(
+      fileId,
+      updateData,
+      req.user.id,
+    );
   }
 
   @Get('files/search')
@@ -198,7 +214,10 @@ export class StorageController {
 
   @Delete('files/bulk')
   @ApiBulkDeleteFiles()
-  async bulkDeleteFiles(@Body() bulkDeleteData: BulkDeleteDto, @Request() req: any) {
+  async bulkDeleteFiles(
+    @Body() bulkDeleteData: BulkDeleteDto,
+    @Request() req: any,
+  ) {
     return this.storageService.bulkDeleteFiles(bulkDeleteData, req.user.id);
   }
 
@@ -263,7 +282,11 @@ export class StorageController {
     @Body() uploadData: MultiProviderUploadDto,
     @Request() req: any,
   ) {
-    return this.storageService.uploadFileToMultipleProviders(file, uploadData, req.user.id);
+    return this.storageService.uploadFileToMultipleProviders(
+      file,
+      uploadData,
+      req.user.id,
+    );
   }
 
   @Delete('multi-provider-delete')
@@ -272,6 +295,9 @@ export class StorageController {
     @Body() deleteData: MultiProviderDeleteDto,
     @Request() req: any,
   ) {
-    return this.storageService.deleteFileFromMultipleProviders(deleteData, req.user.id);
+    return this.storageService.deleteFileFromMultipleProviders(
+      deleteData,
+      req.user.id,
+    );
   }
 }

@@ -19,9 +19,7 @@ async function bootstrap() {
   const port = configService.get<number>('PORT', 3000);
   const allowedOrigins = configService.get<string>('ALLOWED_ORIGINS', '');
 
-  app.use(
-    helmet({ crossOriginResourcePolicy: { policy: 'cross-origin' } }),
-  );
+  app.use(helmet({ crossOriginResourcePolicy: { policy: 'cross-origin' } }));
 
   app.enableCors({
     origin: allowedOrigins

@@ -11,7 +11,8 @@ export const ApiLogin = () =>
   applyDecorators(
     ApiOperation({
       summary: 'Authenticate user',
-      description: 'Authenticate with username and password to receive a JWT access token',
+      description:
+        'Authenticate with username and password to receive a JWT access token',
     }),
     ApiBody({
       schema: {
@@ -57,19 +58,32 @@ export const ApiRegister = () =>
         type: 'object',
         required: ['username', 'email', 'password'],
         properties: {
-          username: { type: 'string', minLength: 3, maxLength: 50, example: 'john_doe' },
-          email: { type: 'string', format: 'email', example: 'john@example.com' },
+          username: {
+            type: 'string',
+            minLength: 3,
+            maxLength: 50,
+            example: 'john_doe',
+          },
+          email: {
+            type: 'string',
+            format: 'email',
+            example: 'john@example.com',
+          },
           password: {
             type: 'string',
             minLength: 8,
             example: 'SecurePass123',
-            description: 'Minimum 8 characters, must contain at least one uppercase letter and one number',
+            description:
+              'Minimum 8 characters, must contain at least one uppercase letter and one number',
           },
         },
       },
     }),
     ApiResponse({ status: 201, description: 'User registered successfully' }),
-    ApiResponse({ status: 409, description: 'Username or email already exists' }),
+    ApiResponse({
+      status: 409,
+      description: 'Username or email already exists',
+    }),
     ApiStandardResponses(),
   );
 
@@ -102,7 +116,8 @@ export const ApiChangePassword = () =>
             type: 'string',
             minLength: 8,
             example: 'NewSecurePass123',
-            description: 'Minimum 8 characters, must contain at least one uppercase letter and one number',
+            description:
+              'Minimum 8 characters, must contain at least one uppercase letter and one number',
           },
         },
       },
